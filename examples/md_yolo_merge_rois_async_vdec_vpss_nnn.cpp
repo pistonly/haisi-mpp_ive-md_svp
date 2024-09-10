@@ -7,6 +7,7 @@
 #include "svp_model_pingpong.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -14,20 +15,20 @@
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
+#include <half.hpp>
 #include <iomanip>
 #include <iostream>
 #include <linux/limits.h>
+#include <netinet/in.h>
 #include <sstream>
 #include <string>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 
-
+using half_float::half;
 class YOLOV8_new : public NNNYOLOV8_CALLBACK {
 public:
   YOLOV8_new(const std::string &modelPath, const std::string &output_dir = "./",
@@ -60,7 +61,7 @@ int main(int argc, char *argv[]) {
   std::string rtsp_url = "rtsp://172.23.24.52:8554/test";
   std::string omPath = "/home/liuyang/Documents/haisi/ai-sd3403/"
                        "ai-sd3403/models/"
-                       "yolov8n-nnn_640x640_1_FP32.om";
+                       "yolov8n_air-little-obj_32-roi-nnn_640x640_1_FP16.om";
   std::string tcp_ip = "172.23.24.52";
   std::string tcp_port = "8880";
   std::string output_dir = "./";
@@ -246,17 +247,20 @@ void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
 
 void YOLOV8_new::CallbackFunc(void *data) {
   std::cout << "callback from yolov8_new" << std::endl;
+  auto d2h_start = std::chrono::high_resolution_clock::now();
   Result ret = Device2Host(m_outputs);
   if (ret != SUCCESS) {
     std::cerr << "Device2Host error" << std::endl;
     return;
   }
   // post process
+  auto postp_start = std::chrono::high_resolution_clock::now();
+
   std::vector<std::vector<std::vector<std::vector<float>>>> bbox;
   std::vector<std::vector<std::vector<float>>> conf;
   std::vector<std::vector<std::vector<int>>> cls;
-  const std::vector<std::vector<float>> bbox_conf =
-      reinterpret_cast<std::vector<std::vector<float>> &>(m_outputs);
+  const std::vector<std::vector<half>> bbox_conf =
+      reinterpret_cast<std::vector<std::vector<half>> &>(m_outputs);
   split_bbox_conf(bbox_conf, mv_outputs_dim, bbox, conf, cls);
   const int batch_num = bbox.size();
   std::vector<std::vector<std::vector<float>>> det_bbox(batch_num);
@@ -321,6 +325,13 @@ void YOLOV8_new::CallbackFunc(void *data) {
       send_file_and_data(m_sock, fileName, real_decs);
     }
   }
+  auto postp_end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      postp_end - postp_start);
+  auto d2h_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
+      postp_start - d2h_start);
+
+  std::cout << "--postprocess cost: " << duration.count() << "ms, D2H cost: " << d2h_cost.count() << "ms" << std::endl;
 }
 
 YOLOV8_new::~YOLOV8_new() {

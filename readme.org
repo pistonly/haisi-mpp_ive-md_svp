@@ -1,0 +1,77 @@
+* description
+input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
+
+* method 1: md + svp_pingpong
+#+begin_src 
+  get one feature: 7
+------------duration: 32 milliseconds----------------
+instance number: 8
+input image: 91
+[INFO]  update ping input dataset success
+[INFO]  svp execute Ping starting
+[INFO]  svp execute Ping finished
+get one feature: 0
+input image: 92
+[INFO]  update pong input dataset success
+[INFO]  svp execute Pong starting
+input image: 93
+[INFO]  update ping input dataset success
+[INFO]  svp execute Pong finished
+[INFO]  svp execute Ping starting
+get one feature: 1
+input image: 94
+[INFO]  update pong input dataset success
+[INFO]  svp execute Ping finished
+get one feature: 2
+input image: 95
+[INFO]  update ping input dataset success
+[INFO]  svp execute Pong starting
+[INFO]  svp execute Pong finished
+get one feature: 3
+[INFO]  svp execute Ping starting
+input image: 96
+[INFO]  update pong input dataset success
+[INFO]  svp execute Ping finished
+get one feature: [INFO]  svp execute Pong starting
+4
+input image: 97
+[INFO]  update ping input dataset success
+[INFO]  svp execute Pong finished
+[INFO]  svp execute Ping starting
+input image: 98
+[INFO]  update pong input dataset success
+get one feature: 5
+[INFO]  svp execute Ping finished
+get one feature: 6
+[INFO]  svp execute Pong starting
+[INFO]  svp execute Pong finished
+get one feature: 7
+------------duration: 38 milliseconds----------------
+
+#+end_src
+
+
+* method 2: md + svp_yolov8(without pingpong)
+#+begin_src 
+  instance number: 0
+------------duration: 13 milliseconds----------------
+instance number: 9
+------------duration: 20 milliseconds----------------
+instance number: 45
+------------duration: 43 milliseconds----------------
+instance number: 7
+------------duration: 18 milliseconds----------------
+instance number: 8
+------------duration: 19 milliseconds----------------
+instance number: 6
+------------duration: 17 milliseconds----------------
+instance number: 7
+------------duration: 18 milliseconds----------------
+instance number: 8
+------------duration: 19 milliseconds----------------
+instance number: 8
+------------duration: 19 milliseconds----------------
+instance number: 13
+------------duration: 22 milliseconds----------------
+#+end_src
+
