@@ -1,0 +1,181 @@
+#include "utils.hpp"
+#include "ot_common_ive.h"
+#include "ot_common_video.h"
+#include "ot_type.h"
+#include "sample_comm.h"
+#include "ss_mpi_sys.h"
+#include "ss_mpi_vpss.h"
+#include <arpa/inet.h>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <netinet/in.h>
+#include <sstream>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <vector>
+
+// 将std::vector<std::vector<float>>序列化为字节流
+std::vector<char> serialize(const std::vector<std::vector<float>> &data) {
+  std::vector<char> buffer;
+  for (const auto &vec : data) {
+    // 序列化每个子vector的大小
+    size_t vec_size = vec.size();
+    buffer.insert(buffer.end(), reinterpret_cast<const char *>(&vec_size),
+                  reinterpret_cast<const char *>(&vec_size) + sizeof(vec_size));
+
+    // 序列化每个float
+    for (float value : vec) {
+      buffer.insert(buffer.end(), reinterpret_cast<const char *>(&value),
+                    reinterpret_cast<const char *>(&value) + sizeof(value));
+    }
+  }
+  return buffer;
+}
+
+// 发送文件名和数据
+void send_file_and_data(int sock, const std::string &filename,
+                        const std::vector<std::vector<float>> &data) {
+  // 发送文件名长度
+  uint32_t filename_len = filename.size();
+  send(sock, &filename_len, sizeof(filename_len), 0);
+
+  // 发送文件名
+  send(sock, filename.c_str(), filename_len, 0);
+
+  // 序列化并发送数据
+  std::vector<char> serialized_data = serialize(data);
+  uint32_t data_len = serialized_data.size();
+
+  // 发送数据长度
+  send(sock, &data_len, sizeof(data_len), 0);
+
+  // 发送数据
+  send(sock, serialized_data.data(), serialized_data.size(), 0);
+}
+
+int save_merged_rois(const std::vector<unsigned char> &merged_roi,
+                     const std::string &out_dir, const int imgId) {
+
+  std::ostringstream oss;
+  oss << out_dir << "merged_roi_" << std::setw(6) << std::setfill('0') << imgId
+      << ".bin";
+  std::string out_name = oss.str();
+  // 打开一个二进制文件以写入
+  std::ofstream outFile(out_name, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file for writing." << std::endl;
+    return 1;
+  }
+
+  // 将数据写入二进制文件
+  outFile.write(reinterpret_cast<const char *>(merged_roi.data()),
+                merged_roi.size() * sizeof(unsigned char));
+
+  // 关闭文件
+  outFile.close();
+
+  return 0;
+}
+
+void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame) {
+  td_u32 height = frame->video_frame.height;
+  td_u32 width = frame->video_frame.width;
+  td_u32 size = height * width * 3 / 2; // 对于YUV420格式，大小为宽*高*1.5
+
+  td_void *frame_data =
+      ss_mpi_sys_mmap_cached(frame->video_frame.phys_addr[0], size);
+  if (frame_data == NULL) {
+    sample_print("mmap failed!\n");
+    /* free(tmp); */
+    return;
+  }
+
+  memcpy(yuv420, frame_data, size);
+}
+
+void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
+                std::vector<unsigned char> &merged_rois,
+                std::vector<std::pair<int, int>> &top_lefts, float scale_x,
+                float scale_y, int imgH, int imgW, int merged_roi_H,
+                int merged_roi_W) {
+  // img and merged_rois are YUV format images.
+  const int roi_size = 32;
+  const int roi_size_half = roi_size / 2;
+  const int rgn_num =
+      std::min(static_cast<int>(p_blob->info.bits.rgn_num), 200);
+  const int num_rois_per_row = merged_roi_W / roi_size;
+
+  const int Y_size = merged_roi_H * merged_roi_W;
+  const int UV_size = Y_size / 2;
+  // fill YUV to gray image
+  std::fill(merged_rois.begin(), merged_rois.begin() + Y_size, 0);
+  std::fill(merged_rois.begin() + Y_size, merged_rois.end(), 128);
+  for (int i = 0; i < rgn_num; ++i) {
+    const int offset_x = i % num_rois_per_row * roi_size;
+    const int offset_y = i / num_rois_per_row * roi_size;
+
+    auto &rgn = p_blob->rgn[i];
+    const int center_x =
+        scale_x * static_cast<int>(0.5f * (static_cast<float>(rgn.left) +
+                                           static_cast<float>(rgn.right)));
+    const int center_y =
+        scale_y * static_cast<int>(0.5f * (static_cast<float>(rgn.top) +
+                                           static_cast<float>(rgn.bottom)));
+
+    const int w_start = std::max(center_x - roi_size_half, 0);
+    const int w_end = std::min(center_x + roi_size_half, imgW);
+    const int h_start = std::max(center_y - roi_size_half, 0);
+    const int h_end = std::min(center_y + roi_size_half, imgH);
+
+    top_lefts.push_back(std::make_pair(w_start, h_start));
+    if (w_start < 0) {
+      std::cout << "----------------w_start: " << w_start << std::endl;
+    }
+    // 预计算索引
+    unsigned int roi_offset = offset_y * merged_roi_W + offset_x;
+    unsigned int img_offset = h_start * imgW;
+    unsigned int roi_uv_offset =
+        (merged_roi_H + offset_y * 0.5) * merged_roi_W + offset_x;
+    unsigned int img_uv_offset = (imgH + h_start * 0.5) * imgW;
+    for (unsigned int h = h_start; h < h_end; ++h) {
+      for (unsigned int w = w_start, roi_x = 0; w < w_end; ++w, ++roi_x) {
+        // 检查是否越界
+        if (roi_offset + roi_x < merged_rois.size() &&
+            img_offset + w < imgH * imgW) {
+          merged_rois[roi_offset + roi_x] = img[img_offset + w];
+          // The number of rows in the Y channel is twice of the UV channel.
+          if (h % 2 == 0) {
+            // uv channel has the same w with Y channel
+            merged_rois[roi_uv_offset + roi_x] = img[img_uv_offset + w];
+          }
+        }
+      }
+      roi_offset += merged_roi_W;
+      img_offset += imgW;
+      if (h % 2 == 0) {
+        roi_uv_offset += merged_roi_W;
+        img_uv_offset += imgW;
+      }
+    }
+  }
+}
+
+void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const std::string &out_dir, const int imageId) {
+  std::ostringstream oss;
+  oss << out_dir << "decs_" << std::setw(6) << std::setfill('0') << imageId << ".bin";
+  std::ofstream outFile(oss.str(), std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << oss.str() << " for writing."
+              << std::endl;
+    return;
+  }
+
+  std::vector<char> serialized_data = serialize(decs);
+  outFile.write(reinterpret_cast<const char*>(serialized_data.data()), serialized_data.size());
+  outFile.close();
+  return;
+}

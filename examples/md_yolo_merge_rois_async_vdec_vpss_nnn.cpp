@@ -27,8 +27,11 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 using half_float::half;
+using json = nlohmann::json;
+
 class YOLOV8_new : public NNNYOLOV8_CALLBACK {
 public:
   YOLOV8_new(const std::string &modelPath, const std::string &output_dir = "./",
@@ -46,6 +49,7 @@ public:
   float m_max_det = 300;
   int m_sock;
   bool mb_sock_connected = false;
+  bool mb_save_results = false;
   void connect_to_tcp(const std::string &ip, const int port);
 
   void CallbackFunc(void *data) override;
@@ -56,33 +60,43 @@ std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
 
 int main(int argc, char *argv[]) {
-  std::cout << "Usage: " << argv[0] << " <RTSP URL>"
-            << " <om_path>" << std::endl;
-  std::string rtsp_url = "rtsp://172.23.24.52:8554/test";
-  std::string omPath = "/home/liuyang/Documents/haisi/ai-sd3403/"
-                       "ai-sd3403/models/"
-                       "yolov8n_air-little-obj_32-roi-nnn_640x640_1_FP16.om";
-  std::string tcp_ip = "172.23.24.52";
-  std::string tcp_port = "8880";
-  std::string output_dir = "./";
+  std::cout << "Usage: " << argv[0] << " <config_path>" << std::endl;
+  std::string configure_path = "../data/configure.json";
 
   if (argc > 1)
-    rtsp_url = argv[1];
+    configure_path = argv[1];
 
-  if (argc > 2)
-    omPath = std::string(argv[2]);
+  // read configure
+  std::ifstream config_file(configure_path);
+  if (!config_file.is_open()) {
+    std::cerr << "can't open configure file: " << configure_path << std::endl;
+    return 1;
+  }
 
-  if (argc > 3)
-    tcp_ip = std::string(argv[3]);
+  json config_data;
+  try {
+    config_file >> config_data;
+  } catch (json::parse_error &e) {
+    std::cerr << "JSON parse error: " << e.what() << std::endl;
+    return 1;
+  }
 
-  if (argc > 4)
-    tcp_port = std::string(argv[4]);
+  std::vector<std::string> required_keys = {"rtsp_url", "om_path", "tcp_id", "tcp_port", "output_dir", "roi_hw"};
+  for (const auto& key: required_keys) {
+    if (!config_data.contains(key)) {
+      std::cerr << "can't found key: " << key << std::endl;
+      return 1;
+    }
+  }
 
-  if (argc > 5)
-    output_dir = std::string(argv[5]);
+  std::string rtsp_url = config_data["rtsp_url"];
+  std::string omPath = config_data["om_path"];
+  std::string tcp_ip = config_data["tcp_id"];
+  std::string tcp_port = config_data["tcp_port"];
+  std::string output_dir = config_data["output_dir"];
+  const int roi_hw = config_data["roi_hw"];
+  bool b_save_result = config_data["save_result"];
 
-
-  const int roi_hw = 32;
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
   const int merged_hw = roi_hw * 20;
   const int merged_size = merged_hw * merged_hw * 1.5;
@@ -99,7 +113,8 @@ int main(int argc, char *argv[]) {
   IVE_MD md;
 
   // initialize ffmpeg_vdec_vpss
-  HardwareDecoder decoder(rtsp_url);
+  bool step_mode = true;
+  HardwareDecoder decoder(rtsp_url, step_mode);
   decoder.start_decode();
 
   // 初始化NPU
@@ -107,6 +122,7 @@ int main(int argc, char *argv[]) {
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
+  yolov8.mb_save_results = b_save_result;
 
   Result sync_flag;
   td_s32 decoder_flag;
@@ -323,6 +339,9 @@ void YOLOV8_new::CallbackFunc(void *data) {
     if (mb_sock_connected) {
       std::string fileName = "decs_image_" + std::to_string(m_imageId) + ".bin";
       send_file_and_data(m_sock, fileName, real_decs);
+    }
+    if (mb_save_results) {
+      save_detect_results(real_decs, m_output_dir, m_imageId);
     }
   }
   auto postp_end = std::chrono::high_resolution_clock::now();

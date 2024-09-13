@@ -69,4 +69,7 @@ int save_merged_rois(const std::vector<unsigned char> &merged_roi,
  */
 void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame);
 
+void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const std::string &out_dir, const int imageId);
+
 #endif
