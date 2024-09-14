@@ -8,6 +8,7 @@
 #include "svp_yolov8_callback.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -18,17 +19,14 @@
 #include <iomanip>
 #include <iostream>
 #include <linux/limits.h>
+#include <netinet/in.h>
 #include <sstream>
 #include <string>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include "utils.hpp"
-
 
 class YOLOV8_new : public SVPYOLOV8_CALLBACK {
 public:
@@ -43,6 +41,7 @@ public:
   int merge_h, merge_w, total_dec_num;
   int m_sock;
   bool mb_sock_connected = false;
+  bool mb_save_results = false;
   void connect_to_tcp(const std::string &ip, const int port);
 
   void CallbackFunc(void *data) override;
@@ -62,7 +61,7 @@ int main(int argc, char *argv[]) {
                        "om";
   std::string tcp_ip = "172.23.24.52";
   std::string tcp_port = "8880";
-  std::string output_dir = "./";
+  std::string output_dir = "/mnt/disk/tmp_svp/";
 
   if (argc > 1)
     rtsp_url = argv[1];
@@ -78,7 +77,6 @@ int main(int argc, char *argv[]) {
 
   if (argc > 5)
     output_dir = std::string(argv[5]);
-
 
   const int roi_hw = 32;
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
@@ -105,6 +103,7 @@ int main(int argc, char *argv[]) {
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
+  yolov8.mb_save_results = true;
 
   Result sync_flag;
   td_s32 decoder_flag;
@@ -183,7 +182,6 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-
 YOLOV8_new::YOLOV8_new(const std::string &modelPath,
                        const std::string &output_dir,
                        const std::string &aclJSON)
@@ -228,7 +226,7 @@ void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
     return;
   }
 
-  if (connect(m_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+  if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
     std::cerr << "Connection Failed." << std::endl;
     return;
   }
@@ -287,9 +285,10 @@ void YOLOV8_new::CallbackFunc(void *data) {
     c_y = 0.5f * (y0 + y1);
     grid_x = static_cast<int>(c_x / roi_hw);
     grid_y = static_cast<int>(c_y / roi_hw);
-    int filted_id = grid_y * grid_num_x + grid_x;
+    const int filted_id = grid_y * grid_num_x + grid_x;
+    const float &current_best_conf = filted_decs[filted_id][4];
 
-    if (filted_id < 100 && conf > filted_decs[filted_id][4]) {
+    if (filted_id < 100 && conf > current_best_conf) {
       float w = x1 - x0;
       float h = y1 - y0;
       filted_decs[filted_id] = {c_x, c_y, w, h, conf, cl};
@@ -322,7 +321,9 @@ void YOLOV8_new::CallbackFunc(void *data) {
     std::string fileName = "decs_image_" + std::to_string(m_imageId) + ".bin";
     send_file_and_data(m_sock, fileName, real_decs);
   }
-
+  if (mb_save_results) {
+    save_detect_results(real_decs, m_output_dir, m_imageId);
+  }
 }
 
 YOLOV8_new::~YOLOV8_new() {
@@ -331,4 +332,3 @@ YOLOV8_new::~YOLOV8_new() {
     mb_sock_connected = false; // 更新连接状态
   }
 }
-

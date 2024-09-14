@@ -1,13 +1,14 @@
-import cv2
 import numpy as np
+import cv2
 from pathlib import Path
 import struct
 import time
 
-url = "rtsp://172.23.24.52:8554/test"
-# tcp_data_dir = Path("/home/liuyang/Documents/haisi/ai-sd3403/ai-sd3403/test/test_tcp/x86/build/")
-tcp_data_dir = Path("/home/liuyang/Documents/tmp/nnn_debug/")
-
+# image_dir = Path("/home/liuyang/Documents/haisi/ai-sd3403/ai-sd3403/mpp_ive-md_svp/out/")
+image_dir = Path("/home/liuyang/Documents/tmp/nnn_debug/")
+img_fns = [fn for fn in image_dir.iterdir() if fn.name.startswith("merged_roi") and fn.name.endswith(".bin")]
+img_fns = sorted(img_fns
+                 )
 
 def deserialize(buffer):
     data = []
@@ -33,7 +34,7 @@ def get_decs(dec_file):
         with open(dec_file, "rb") as f:
             data_buffer = f.read()
             data = deserialize(data_buffer)
-            # print(data)
+            print(data)
             return data
     else:
         print(f"{dec_file} is not filename")
@@ -50,41 +51,42 @@ def draw_rec(image, decs):
             y1 = int(y + 32)
             continue
         else:
-            print(x, y, h, w, conf, cls)
             x0 = int(x - w // 2)
             y0 = int(y - h // 2)
             x1 = int(x + w // 2)
             y1 = int(y + h // 2)
-
         cv2.rectangle(image, (x0, y0), (x1, y1), (255, 255, 255), 2)
     return image
 
-cap = cv2.VideoCapture(url)
 
-if not cap.isOpened():
-    print("Cannot open RTSP stream.")
-    exit()
 
 
 cv2.namedWindow('RTSP Stream', cv2.WINDOW_NORMAL)
 
 img_id = 0
+img_H, img_W = 640, 640
 while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Cannot receive frame (stream end?). Exiting ...")
+    yuv_path = image_dir / f"merged_roi_{img_id:06d}.bin"
+    if not yuv_path.is_file():
         break
 
-    decs = get_decs(str(tcp_data_dir / f"decs_image_{img_id:06d}.bin"))
+    with open(str(yuv_path), 'rb') as f:
+        yuv = f.read()
+        size = len(yuv)
+        w = img_W
+        h = size // w
+        img = np.ndarray((h, w), dtype=np.uint8, buffer=yuv)
+        frame = cv2.cvtColor(img, cv2.COLOR_YUV2BGR_NV12)
+
+    decs = get_decs(str(image_dir / f"0decs_image_{img_id:06d}.bin"))
     frame = draw_rec(frame, decs)
 
     img_id += 1
 
     cv2.imshow('RTSP Stream', frame)
-    if cv2.waitKey(1) == ord('q'):
-        break
-    time.sleep(0.2)
+    while (1):
+        if cv2.waitKey(1) == ord('n'):
+            break
 
 
-cap.release()
 cv2.destroyAllWindows()

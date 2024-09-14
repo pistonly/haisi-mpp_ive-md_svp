@@ -409,7 +409,7 @@ void HardwareDecoder::decode_thread_step() {
   while (decoding_) {
     if (mb_step_mode) {
       if (!mb_decode_step_on) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10)); // waiting
+        std::this_thread::sleep_for(std::chrono::milliseconds(3)); // waiting
         continue;
       } else {
         if (packet_num > 0) {

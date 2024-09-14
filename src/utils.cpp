@@ -164,9 +164,12 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
 }
 
 void save_detect_results(const std::vector<std::vector<float>> &decs,
-                         const std::string &out_dir, const int imageId) {
+                         const std::string &out_dir, const int imageId,
+                         const std::string &prefix) {
   std::ostringstream oss;
-  oss << out_dir << "decs_" << std::setw(6) << std::setfill('0') << imageId << ".bin";
+  std::string stem = prefix + "decs_image_";
+  oss << out_dir << stem << std::setw(6) << std::setfill('0') << imageId
+      << ".bin";
   std::ofstream outFile(oss.str(), std::ios::binary);
   if (!outFile) {
     std::cerr << "Error opening file " << oss.str() << " for writing."
@@ -175,7 +178,26 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
   }
 
   std::vector<char> serialized_data = serialize(decs);
-  outFile.write(reinterpret_cast<const char*>(serialized_data.data()), serialized_data.size());
+  outFile.write(reinterpret_cast<const char *>(serialized_data.data()),
+                serialized_data.size());
   outFile.close();
   return;
+}
+
+void save_detect_results(const std::vector<std::vector<float>> &bbox,
+                         const std::vector<float> &conf,
+                         const std::vector<int> &cls,
+                         const std::string &out_dir, const int imageId,
+                         const std::string &prefix) {
+  // concat to decs: x0, y0, x1, y1, conf, cls
+  std::vector<std::vector<float>> decs{bbox.size(), std::vector<float>(6, 0.f)};
+  for (auto i=0; i<bbox.size(); ++i) {
+    decs[i][0] = bbox[i][0];
+    decs[i][1] = bbox[i][1];
+    decs[i][2] = bbox[i][2];
+    decs[i][3] = bbox[i][3];
+    decs[i][4] = conf[i];
+    decs[i][5] = static_cast<float>(cls[i]);
+  }
+  save_detect_results(decs, out_dir, imageId, prefix);
 }
