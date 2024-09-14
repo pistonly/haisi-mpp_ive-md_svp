@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <half.hpp>
 #include <iomanip>
 #include <iostream>
@@ -31,6 +32,9 @@
 
 using half_float::half;
 using json = nlohmann::json;
+
+// 全局日志器实例，初始日志级别为 INFO
+Logger logger(INFO);
 
 class YOLOV8_new : public NNNYOLOV8_CALLBACK {
 public:
@@ -77,7 +81,7 @@ int main(int argc, char *argv[]) {
   // read configure
   std::ifstream config_file(configure_path);
   if (!config_file.is_open()) {
-    std::cerr << "can't open configure file: " << configure_path << std::endl;
+    logger.log(ERROR, "Can't open configure file: ", configure_path);
     return 1;
   }
 
@@ -85,15 +89,33 @@ int main(int argc, char *argv[]) {
   try {
     config_file >> config_data;
   } catch (json::parse_error &e) {
-    std::cerr << "JSON parse error: " << e.what() << std::endl;
+    logger.log(ERROR, "JSON parse error: ", e.what());
     return 1;
   }
 
-  std::vector<std::string> required_keys = {"rtsp_url", "om_path",    "tcp_id",
-                                            "tcp_port", "output_dir", "roi_hw"};
+  // 设置日志级别
+  if (config_data.contains("log_level")) {
+    std::string level = config_data["log_level"];
+    if (level == "DEBUG") {
+      logger.setLogLevel(DEBUG);
+    } else if (level == "INFO") {
+      logger.setLogLevel(INFO);
+    } else if (level == "WARNING") {
+      logger.setLogLevel(WARNING);
+    } else if (level == "ERROR") {
+      logger.setLogLevel(ERROR);
+    } else {
+      logger.log(WARNING, "Unknown log level: ", level, ", using INFO level.");
+      logger.setLogLevel(INFO);
+    }
+  }
+
+  std::vector<std::string> required_keys = {
+      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
+      "output_dir", "roi_hw",  "save_result", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
-      std::cerr << "can't found key: " << key << std::endl;
+      logger.log(ERROR, "Can't find key: ", key);
       return 1;
     }
   }
@@ -110,6 +132,8 @@ int main(int argc, char *argv[]) {
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
   const int merged_hw = roi_hw * 20;
   const int merged_size = merged_hw * merged_hw * 1.5;
+
+  // Pre-allocate buffers outside the loop
   std::vector<unsigned char> merged_roi(merged_size, 0);
   ot_ive_ccblob blob = {0};
 
@@ -143,10 +167,13 @@ int main(int argc, char *argv[]) {
 
   signal(SIGINT, signal_handler); // capture Ctrl+C
   int frame_id = 0;
+
+  // Pre-allocate buffers
+  std::vector<unsigned char> img(IMAGE_SIZE);
+  std::vector<unsigned char> img_high(IMAGE_SIZE2);
+
   while (running && !decoder.is_ffmpeg_exit()) {
     auto start_time = std::chrono::high_resolution_clock::now();
-    std::vector<unsigned char> img(IMAGE_SIZE);
-    std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
     if (decoder.get_frame_without_release()) {
       copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
@@ -157,8 +184,8 @@ int main(int argc, char *argv[]) {
 
     auto md_start = std::chrono::high_resolution_clock::now();
     md.process(decoder.frame_L, &blob);
-    std::cout << "instance number: " << static_cast<int>(blob.info.bits.rgn_num)
-              << std::endl;
+    logger.log(DEBUG,
+               "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
 
     decoder.release_frames();
 
@@ -176,7 +203,7 @@ int main(int argc, char *argv[]) {
     auto yolov8_syn = std::chrono::high_resolution_clock::now();
     sync_flag = yolov8.SynchronizeStream();
     if (sync_flag != SUCCESS) {
-      std::cerr << "synchronizeStream failed" << std::endl;
+      logger.log(ERROR, "synchronizeStream failed");
       return 1;
     }
     auto yolov8_syn_end = std::chrono::high_resolution_clock::now();
@@ -201,19 +228,17 @@ int main(int argc, char *argv[]) {
     auto syn_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
         yolov8_syn_end - yolov8_syn);
     auto asyn_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        yolov8_async_end - yolov8_async_end);
-    std::cout << "------------duration: " << duration.count()
-              << ", decode cost: " << decode_cost.count()
-              << ", md cost: " << md_cost.count()
-              << ", merge cost: " << merge_cost.count()
-              << ", syn cost: " << syn_cost.count()
-              << ", async const: " << asyn_cost.count()
-              << " milliseconds----------------" << std::endl;
+        yolov8_async_end - yolov8_syn_end);
+
+    logger.log(DEBUG, "Frame ", frame_id, " processed. Duration: ", duration.count(),
+               "ms, Decode: ", decode_cost.count(), "ms, MD: ", md_cost.count(),
+               "ms, Merge: ", merge_cost.count(), "ms, Sync: ", syn_cost.count(),
+               "ms, Async: ", asyn_cost.count(), "ms");
   }
 
   sync_flag = yolov8.SynchronizeStream();
   if (sync_flag != SUCCESS) {
-    std::cerr << "synchronizeStream failed" << std::endl;
+    logger.log(ERROR, "synchronizeStream failed");
     return 1;
   }
   return 0;
@@ -226,29 +251,30 @@ YOLOV8_new::YOLOV8_new(const std::string &modelPath,
 
   char c_output_dir[PATH_MAX];
   if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
-    std::cerr << "output_dir error: " << c_output_dir << std::endl;
+    logger.log(ERROR, "Output directory error: ", output_dir);
   }
   m_output_dir = std::string(c_output_dir);
 
   if (m_output_dir.back() != '/')
     m_output_dir += '/';
-  std::cout << "output_dir is: " << m_output_dir << std::endl;
+  logger.log(INFO, "Output directory is: ", m_output_dir);
   std::vector<size_t> outbuf_size;
   GetOutBufferSize(outbuf_size);
   m_outputs.resize(outbuf_size.size());
-  std::cout << "out num: " << outbuf_size.size() << std::endl;
+  logger.log(INFO, "out num: ", outbuf_size.size());
   for (size_t i = 0; i < outbuf_size.size(); ++i) {
     m_outputs[i].resize(outbuf_size[i], 0);
-    std::cout << "out size of " << i << ": " << outbuf_size[i] << std::endl;
+    logger.log(INFO, "size of output_", i, ": ", outbuf_size[i]);
   }
 
   GetModelInfo(nullptr, &merge_h, &merge_w, nullptr, nullptr, &mv_outputs_dim);
   for (auto &dim_i : mv_outputs_dim) {
-    std::cout << "out dim: " << std::endl;
+    std::stringstream ss;
+    ss << "out dim: " << std::endl;
     for (auto dim_i_j : dim_i) {
-      std::cout << dim_i_j << ", ";
+      ss << dim_i_j << ", ";
     }
-    std::cout << std::endl;
+    logger.log(INFO, ss.str());
   }
 }
 
@@ -257,7 +283,7 @@ void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
   struct sockaddr_in serv_addr;
 
   if ((m_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    std::cerr << "Socket creation failed." << std::endl;
+    logger.log(ERROR, "Socket creation failed.");
     return;
   }
 
@@ -265,27 +291,28 @@ void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
   serv_addr.sin_port = htons(port);
 
   if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-    std::cerr << "Invalid address / Address not supported." << std::endl;
+    logger.log(ERROR, "Invalid address / Address not supported.");
     return;
   }
 
   if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    std::cerr << "Connection Failed." << std::endl;
+    logger.log(ERROR, "Connection Failed.");
     return;
   }
 
   mb_sock_connected = true;
+  logger.log(INFO, "Connected to TCP server at ", ip, ":", port);
   return;
 }
 
 void YOLOV8_new::CallbackFunc(void *data) {
-  std::cout << "callback from yolov8_new" << std::endl;
-  auto d2h_start = std::chrono::high_resolution_clock::now();
+  logger.log(DEBUG, "callback from yolov8_new");
+  auto d2h_start =
+      std::chrono::high_resolution_clock::now();
   std::vector<const char *> vp_outputs;
   Result ret = Device2Host(vp_outputs);
-  // Result ret = Device2Host(m_outputs);
   if (ret != SUCCESS) {
-    std::cerr << "Device2Host error" << std::endl;
+    logger.log(ERROR, "Device2Host error");
     return;
   }
   // post process
@@ -334,17 +361,17 @@ void YOLOV8_new::CallbackFunc(void *data) {
     std::vector<std::vector<float>> real_decs;
     const int instance_num = m_toplefts.size();
 
-    for (int i = 0; i < instance_num; ++i) {
-      const auto &tl = m_toplefts[i];
-      const auto &dec = filted_decs[i];
-      grid_x = i % grid_num_x;
-      grid_y = i / grid_num_x;
+    for (int k = 0; k < instance_num; ++k) {
+      const auto &tl = m_toplefts[k];
+      const auto &dec = filted_decs[k];
+      grid_x = k % grid_num_x;
+      grid_y = k / grid_num_x;
       if (dec[4] > 0) {
         c_x = dec[0] - roi_hw * grid_x + tl.first;
         c_y = dec[1] - roi_hw * grid_y + tl.second;
       } else {
-        c_x = (float)tl.first;
-        c_y = (float)tl.second;
+        c_x = static_cast<float>(tl.first);
+        c_y = static_cast<float>(tl.second);
       }
       real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
     }
@@ -363,13 +390,14 @@ void YOLOV8_new::CallbackFunc(void *data) {
   auto d2h_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
       postp_start - d2h_start);
 
-  std::cout << "--postprocess cost: " << duration.count()
-            << "ms, D2H cost: " << d2h_cost.count() << "ms" << std::endl;
+  logger.log(DEBUG, "Post-processing cost: ", duration.count(),
+             "ms, D2H cost: ", d2h_cost.count(), "ms");
 }
 
 YOLOV8_new::~YOLOV8_new() {
   if (mb_sock_connected) {
     close(m_sock);
-    mb_sock_connected = false; // 更新连接状态
+    mb_sock_connected = false;
+    logger.log(INFO, "Disconnected from TCP server.");
   }
 }

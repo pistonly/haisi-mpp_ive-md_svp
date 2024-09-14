@@ -11,6 +11,50 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
+#include <mutex>
+
+// 定义日志级别
+enum LogLevel { DEBUG, INFO, WARNING, ERROR };
+
+// 简单的日志类
+class Logger {
+public:
+  Logger(LogLevel level) : log_level(level) {}
+
+  void setLogLevel(LogLevel level) { log_level = level; }
+
+  template <typename... Args> void log(LogLevel level, Args &&...args) {
+    if (level >= log_level) {
+      print(level, std::forward<Args>(args)...);
+    }
+  }
+
+private:
+  LogLevel log_level;
+
+  template <typename... Args> void print(LogLevel level, Args &&...args) {
+    std::string level_str;
+    switch (level) {
+    case DEBUG:
+      level_str = "[DEBUG]";
+      break;
+    case INFO:
+      level_str = "[INFO]";
+      break;
+    case WARNING:
+      level_str = "[WARNING]";
+      break;
+    case ERROR:
+      level_str = "[ERROR]";
+      break;
+    }
+    std::lock_guard<std::mutex> guard(mtx);
+    std::cout << level_str << " ";
+    (std::cout << ... << args) << std::endl;
+  }
+
+  std::mutex mtx; // 保证多线程环境下日志输出的原子性
+};
 
 /**
  * @brief serialize data for sending to TCP server

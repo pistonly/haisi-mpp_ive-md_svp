@@ -1,7 +1,83 @@
 * description
 input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
 
-* method 1: md + svp_pingpong
+
+* log
+#+begin_example
+/home/liuyang/Documents/haisi/mpp_ive-md_svp/out # ./md_yolo_merged_roi_async_vdec_vpss_nnn
+[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:06.616.818 [aicpusd_cust_so_manager.cpp:73][AicpuCustSoManagerInit][tid:2442] cust so dir name is /root/cust_aicpu_0_2442/.
+Usage: ./md_yolo_merged_roi_async_vdec_vpss_nnn <config_path>
+red frame number: 1
+red frame number: 2
+[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.959.348 [msprof_callback_impl.cpp:99] >>> (tid:2442) MsprofCtrlCallback called, type: 255
+[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.959.675 [prof_acl_mgr.cpp:1328] >>> (tid:2442) Init profiling for dynamic profiling
+[INFO]  nnn acl init success
+[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.972.999 [aicpusd_interface.cpp:113][AICPUPreOpenKernels][tid:2442] Preload so libaicpu_kernels.so success.
+[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.975.915 [aicpusd_interface.cpp:113][AICPUPreOpenKernels][tid:2442] Preload so libcpu_kernels.so success.
+[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.978.896 [msprof_callback_impl.cpp:120] >>> (tid:2442) MsprofSetDeviceCallback called, is open: 1
+[INFO]  nnn acl open device 0 success
+[INFO]  nnn create context success
+[INFO]  nnn create stream success
+[INFO]  get run mode success
+[INFO]  create model description success
+[INFO]  load model /home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/yolov8n_air-little-obj_32-roi_640x640_FP16.om success
+batch size: 1, height: 640, width: 640
+[INFO]  input index[0] info: bufferSize[614400]
+[INFO]  input dims:
+1, 640, 640, 3,
+
+[INFO]  create input buffer SUCCESS
+[INFO]  create model output success
+[INFO]  subscribe report success
+output_dir is: /mnt/disk/tmp/
+out num: 3
+out size of 0: 67200
+out size of 1: 16800
+out size of 2: 16800
+out dim:
+1, 4, 8400,
+out dim:
+1, 1, 8400,
+out dim:
+1, 1, 8400,
+Connection Failed.
+Received frame-1 with width: 1920
+set mb_decode_step_on
+red frame number: 3
+instance number: 0
+------------duration: 15, decode cost: 12, md cost: 0, merge cost: 0, syn cost: 0, async const: 0 milliseconds----------------
+Received frame-1 with width: 1920
+set mb_decode_step_on
+red frame number: 4
+instance number: 12
+callback from yolov8_new
+--postprocess cost: 0ms, D2H cost: 0ms
+------------duration: 17, decode cost: 13, md cost: 0, merge cost: 1, syn cost: 1, async const: 0 milliseconds----------------
+Received frame-1 with width: 1920
+set mb_decode_step_on
+red frame number: 5
+instance number: 130
+callback from yolov8_new
+--postprocess cost: 0ms, D2H cost: 0ms
+------------duration: 20, decode cost: 15, md cost: 1, merge cost: 2, syn cost: 0, async const: 0 milliseconds----------------
+Received frame-1 with width: 1920
+set mb_decode_step_on
+red frame number: 6
+instance number: 11
+callback from yolov8_new
+--postprocess cost: 0ms, D2H cost: 0ms
+------------duration: 20, decode cost: 15, md cost: 1, merge cost: 1, syn cost: 2, async const: 0 milliseconds----------------
+Received frame-1 with width: 1920
+set mb_decode_step_on
+red frame number: 7
+instance number: 8
+callback from yolov8_new
+--postprocess cost: 0ms, D2H cost: 0ms
+------------duration: 20, decode cost: 13, md cost: 1, merge cost: 1, syn cost: 4, async const: 0 milliseconds----------------
+
+#+end_example
+* old
+** method 1: md + svp_pingpong
 #+begin_src 
   get one feature: 7
 ------------duration: 32 milliseconds----------------
@@ -51,7 +127,7 @@ get one feature: 7
 #+end_src
 
 
-* method 2: md + svp_yolov8(without pingpong)
+** method 2: md + svp_yolov8(without pingpong)
 #+begin_src 
   instance number: 0
 ------------duration: 13 milliseconds----------------
