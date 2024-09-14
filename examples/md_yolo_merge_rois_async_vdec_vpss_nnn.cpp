@@ -233,10 +233,11 @@ int main(int argc, char *argv[]) {
     auto asyn_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
         yolov8_async_end - yolov8_syn_end);
 
-    logger.log(DEBUG, "Frame ", frame_id, " processed. Duration: ", duration.count(),
-               "ms, Decode: ", decode_cost.count(), "ms, MD: ", md_cost.count(),
-               "ms, Merge: ", merge_cost.count(), "ms, Sync: ", syn_cost.count(),
-               "ms, Async: ", asyn_cost.count(), "ms");
+    logger.log(
+        DEBUG, "Frame ", frame_id, " processed. Duration: ", duration.count(),
+        "ms, Decode: ", decode_cost.count(), "ms, MD: ", md_cost.count(),
+        "ms, Merge: ", merge_cost.count(), "ms, Sync: ", syn_cost.count(),
+        "ms, Async: ", asyn_cost.count(), "ms");
   }
 
   sync_flag = yolov8.SynchronizeStream();
@@ -310,8 +311,7 @@ void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
 
 void YOLOV8_new::CallbackFunc(void *data) {
   logger.log(DEBUG, "callback from yolov8_new");
-  auto d2h_start =
-      std::chrono::high_resolution_clock::now();
+  auto d2h_start = std::chrono::high_resolution_clock::now();
   std::vector<const char *> vp_outputs;
   Result ret = Device2Host(vp_outputs);
   if (ret != SUCCESS) {
