@@ -132,9 +132,14 @@ int main(int argc, char *argv[]) {
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
+  if (config_data.contains("conf_thres"))
+    yolov8.m_conf_thres = config_data["conf_thres"];
+  if (config_data.contains("iou_thres"))
+    yolov8.m_iou_thres = config_data["iou_thres"];
+  if (config_data.contains("max_det"))
+    yolov8.m_max_det = config_data["max_det"];
 
   Result sync_flag;
-  td_s32 decoder_flag;
 
   signal(SIGINT, signal_handler); // capture Ctrl+C
   int frame_id = 0;
@@ -143,12 +148,11 @@ int main(int argc, char *argv[]) {
     std::vector<unsigned char> img(IMAGE_SIZE);
     std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
-    decoder_flag = decoder.get_frame_without_release();
-    if (decoder_flag) {
+    if (decoder.get_frame_without_release()) {
       copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
                              &decoder.frame_H);
     } else {
-      continue;
+      break;
     }
 
     auto md_start = std::chrono::high_resolution_clock::now();
@@ -165,9 +169,9 @@ int main(int argc, char *argv[]) {
                3840, merged_hw, merged_hw);
     auto merge_end = std::chrono::high_resolution_clock::now();
 
-    // debug
-    // save merged_roi
-    save_merged_rois(merged_roi, output_dir, frame_id);
+    // // debug
+    // // save merged_roi
+    // save_merged_rois(merged_roi, output_dir, frame_id);
 
     auto yolov8_syn = std::chrono::high_resolution_clock::now();
     sync_flag = yolov8.SynchronizeStream();
@@ -287,14 +291,9 @@ void YOLOV8_new::CallbackFunc(void *data) {
   // post process
   auto postp_start = std::chrono::high_resolution_clock::now();
 
-  std::vector<std::vector<std::vector<std::vector<float>>>> bbox;
-  std::vector<std::vector<std::vector<float>>> conf;
-  std::vector<std::vector<std::vector<int>>> cls;
   split_bbox_conf_reduced(vp_outputs, mv_outputs_dim, mvp_bbox, mvp_conf,
                           mvp_cls);
-  // const std::vector<std::vector<half>> bbox_conf =
-  //     reinterpret_cast<std::vector<std::vector<half>> &>(m_outputs);
-  // split_bbox_conf(bbox_conf, mv_outputs_dim, bbox, conf, cls);
+
   const int batch_num = mvp_bbox.size();
   std::vector<std::vector<std::vector<half>>> det_bbox(batch_num);
   std::vector<std::vector<half>> det_conf(batch_num);
@@ -309,15 +308,6 @@ void YOLOV8_new::CallbackFunc(void *data) {
     NMS_bboxTranspose(box_num, bbox_batch_i, conf_batch_i, cls_batch_i,
                       det_bbox[i], det_conf[i], det_cls[i], m_conf_thres,
                       m_iou_thres, m_max_det);
-    // const std::vector<std::vector<std::vector<float>>> &bbox_batch_i =
-    // bbox[i]; const std::vector<std::vector<float>> &conf_batch_i = conf[i];
-    // const std::vector<std::vector<int>> &cls_batch_i = cls[i];
-    // NMS(bbox_batch_i, conf_batch_i, cls_batch_i, det_bbox[i], det_conf[i],
-    //     det_cls[i], m_conf_thres, m_iou_thres, m_max_det);
-    // // debug
-    // // save merged-roi decs
-    // save_detect_results(det_bbox[i], det_conf[i], det_cls[i], m_output_dir,
-    //                     m_imageId, std::to_string(i));
 
     // filter detection. each DEC assign to one 32x32 patch.
     const int grid_num_x = merge_w / roi_hw;
@@ -338,9 +328,6 @@ void YOLOV8_new::CallbackFunc(void *data) {
         float w = box[2] - box[0];
         float h = box[3] - box[1];
         filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
-        std::cout << "--------------results: " << c_x << ", " << c_y << ", "
-                  << w << ", " << h << ", " << conf << ", " << det_cls[i][j]
-                  << std::endl;
       }
     }
     // change to real location

@@ -6,5 +6,6 @@
     "output_dir": "/mnt/disk/tmp/",
     "roi_hw": 32,
     "save_result": true,
-    "decode_step_mode": true
+    "decode_step_mode": true,
+    "conf_thres": 0.1
 }
