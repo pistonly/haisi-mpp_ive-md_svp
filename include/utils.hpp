@@ -56,6 +56,8 @@ private:
   std::mutex mtx; // 保证多线程环境下日志输出的原子性
 };
 
+extern Logger logger;
+
 /**
  * @brief serialize data for sending to TCP server
  * @details Description

@@ -17,6 +17,9 @@
 #include <unistd.h>
 #include <vector>
 
+// 全局日志器实例，初始日志级别为 INFO
+Logger logger(INFO);
+
 // 将std::vector<std::vector<float>>序列化为字节流
 std::vector<char> serialize(const std::vector<std::vector<float>> &data) {
   std::vector<char> buffer;

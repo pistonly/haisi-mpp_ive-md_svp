@@ -33,8 +33,11 @@
 using half_float::half;
 using json = nlohmann::json;
 
-// 全局日志器实例，初始日志级别为 INFO
-Logger logger(INFO);
+extern Logger logger;
+
+static float default_conf_thres = 0.5;
+static float default_iou_thres = 0.6;
+static float default_max_det = 300;
 
 class YOLOV8_new : public NNNYOLOV8_CALLBACK {
 public:
@@ -48,9 +51,9 @@ public:
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId;
   int merge_h, merge_w;
-  float m_conf_thres = 0.5;
-  float m_iou_thres = 0.6;
-  float m_max_det = 300;
+  float m_conf_thres = default_conf_thres;
+  float m_iou_thres = default_iou_thres;
+  float m_max_det = default_max_det;
   int m_sock;
   bool mb_sock_connected = false;
   bool mb_save_results = false;

@@ -6,9 +6,11 @@
 #include "sample_comm.h"
 #include "sample_common_ive.h"
 #include "ss_mpi_vpss.h"
+#include "utils.hpp"
 #include <atomic>
 #include <csignal>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -26,6 +28,8 @@ extern "C" {
 #define DISPLAY_NUM 2
 #define SAMPLE_VDEC_COMM_VB_CNT 4
 #define SAMPLE_VDEC_VPSS_LOW_DELAY_LINE_CNT 16
+
+extern Logger logger;
 
 static ot_payload_type g_cur_type = OT_PT_H265;
 // static ot_payload_type g_cur_type = OT_PT_H264;
@@ -438,16 +442,13 @@ void HardwareDecoder::decode_thread_step() {
         break;
       }
       packet_num++;
-      // if (packet_num > 2) {
-      //   mb_decode_step_on = false;
-      // }
-      std::cout << "red frame number: " << packet_num << std::endl;
+      logger.log(DEBUG, "read frame number: ", packet_num);
     }
     av_packet_unref(&packet);
 
     td_s32 ret = ss_mpi_vdec_query_status(0, &vdec_status_);
     if (ret != TD_SUCCESS) {
-      std::cerr << "Error querying VDEC status!" << std::endl;
+      logger.log(ERROR, "Error querying VDEC status!");
     }
   }
   g_sample_exit = 1;
@@ -460,7 +461,7 @@ void HardwareDecoder::decode_thread() {
 
   while (decoding_ && av_read_frame(fmt_ctx_, &packet) >= 0) {
     if (mb_step_mode) {
-      std::cerr << "mb_step_mode should be false" << std::endl;
+      logger.log(ERROR, "mb_step_mode should be false");
     } else {
       std::this_thread::sleep_for(std::chrono::milliseconds(33)); // waiting
     }
@@ -475,18 +476,19 @@ void HardwareDecoder::decode_thread() {
 
       td_s32 ret = ss_mpi_vdec_send_stream(0, &stream, -1);
       if (ret != TD_SUCCESS) {
-        std::cerr << "Error sending stream to decoder for " << std::hex << ret
-                  << std::endl;
+        std::stringstream ss;
+        ss << "Error sending stream to decoder for " << std::hex << ret;
+        logger.log(ERROR, ss.str());
         break;
       }
       packet_num++;
-      std::cout << "red frame number: " << packet_num << std::endl;
+      logger.log(DEBUG, "red frame number: ", packet_num);
     }
     av_packet_unref(&packet);
 
     td_s32 ret = ss_mpi_vdec_query_status(0, &vdec_status_);
     if (ret != TD_SUCCESS) {
-      std::cerr << "Error querying VDEC status!" << std::endl;
+      logger.log(ERROR, "Error querying VDEC status!");
     }
   }
   g_sample_exit = 1;
@@ -517,33 +519,32 @@ bool HardwareDecoder::get_frames(void *img_H, ot_svp_dst_img *dst_L) {
     sample_print("get chn frame-1 failed for Err(%#x)\n", ret);
     ret = ss_mpi_vdec_query_status(0, &vdec_status_);
     if (ret != TD_SUCCESS) {
-      std::cerr << "Error querying VDEC status!" << std::endl;
+      logger.log(ERROR, "Error querying VDEC status!");
     } else {
-      std::cout << "INFO: \n"
-                << " type: " << vdec_status_.type
-                << ", left bytes: " << vdec_status_.left_stream_bytes
-                << ", left frames: " << vdec_status_.left_stream_frames
-                << ", left decoded_frames: " << vdec_status_.left_decoded_frames
-                << ", is_started: " << vdec_status_.is_started
-                << ", recv_stream_frames: " << vdec_status_.recv_stream_frames
-                << ", dec_stream_frames: " << vdec_status_.dec_stream_frames
-                << ", dec_w: " << vdec_status_.width
-                << ", dec_h: " << vdec_status_.height << std::endl;
-
-      std::cout
-          << "VDEC status error: \n"
-          << " set_pic_size_err: " << vdec_status_.dec_err.set_pic_size_err
-          << ", set_protocol_num_err: "
-          << vdec_status_.dec_err.set_protocol_num_err
-          << ", set_ref_num_err: " << vdec_status_.dec_err.set_ref_num_err
-          << ", set_pic_buf_size_err: "
-          << vdec_status_.dec_err.set_pic_buf_size_err
-          << ", format_err: " << vdec_status_.dec_err.format_err
-          << ", stream_unsupport: " << vdec_status_.dec_err.stream_unsupport
-          << ", pack_err: " << vdec_status_.dec_err.pack_err
-          << ", stream_size_over: " << vdec_status_.dec_err.stream_size_over
-          << ", stream not release: " << vdec_status_.dec_err.stream_not_release
-          << std::endl;
+      std::stringstream ss;
+      ss << "INFO: \n"
+         << " type: " << vdec_status_.type
+         << ", left bytes: " << vdec_status_.left_stream_bytes
+         << ", left frames: " << vdec_status_.left_stream_frames
+         << ", left decoded_frames: " << vdec_status_.left_decoded_frames
+         << ", is_started: " << vdec_status_.is_started
+         << ", recv_stream_frames: " << vdec_status_.recv_stream_frames
+         << ", dec_stream_frames: " << vdec_status_.dec_stream_frames
+         << ", dec_w: " << vdec_status_.width
+         << ", dec_h: " << vdec_status_.height << std::endl
+         << "VDEC status error: \n"
+         << " set_pic_size_err: " << vdec_status_.dec_err.set_pic_size_err
+         << ", set_protocol_num_err: "
+         << vdec_status_.dec_err.set_protocol_num_err
+         << ", set_ref_num_err: " << vdec_status_.dec_err.set_ref_num_err
+         << ", set_pic_buf_size_err: "
+         << vdec_status_.dec_err.set_pic_buf_size_err
+         << ", format_err: " << vdec_status_.dec_err.format_err
+         << ", stream_unsupport: " << vdec_status_.dec_err.stream_unsupport
+         << ", pack_err: " << vdec_status_.dec_err.pack_err
+         << ", stream_size_over: " << vdec_status_.dec_err.stream_size_over
+         << ", stream not release: " << vdec_status_.dec_err.stream_not_release;
+      logger.log(DEBUG, ss.str());
     }
     return false;
   }
@@ -571,7 +572,7 @@ bool HardwareDecoder::get_frame_without_release() {
   // NOTE: need release frames
   td_s32 ret = ss_mpi_vdec_query_status(0, &vdec_status_);
   if (ret != TD_SUCCESS) {
-    std::cerr << "Error querying VDEC status!" << std::endl;
+    logger.log(ERROR, "Error querying VDEC status!");
     return false;
   }
 
@@ -585,41 +586,41 @@ bool HardwareDecoder::get_frame_without_release() {
 
   if (ret != TD_SUCCESS) {
     sample_print("get chn-1 frame failed for Err(%#x)\n", ret);
-    std::cout << "INFO: \n"
-              << " type: " << vdec_status_.type
-              << ", left bytes: " << vdec_status_.left_stream_bytes
-              << ", left frames: " << vdec_status_.left_stream_frames
-              << ", left decoded_frames: " << vdec_status_.left_decoded_frames
-              << ", is_started: " << vdec_status_.is_started
-              << ", recv_stream_frames: " << vdec_status_.recv_stream_frames
-              << ", dec_stream_frames: " << vdec_status_.dec_stream_frames
-              << ", dec_w: " << vdec_status_.width
-              << ", dec_h: " << vdec_status_.height << std::endl;
-
-    std::cout << "VDEC status error: \n"
-              << " set_pic_size_err: " << vdec_status_.dec_err.set_pic_size_err
-              << ", set_protocol_num_err: "
-              << vdec_status_.dec_err.set_protocol_num_err
-              << ", set_ref_num_err: " << vdec_status_.dec_err.set_ref_num_err
-              << ", set_pic_buf_size_err: "
-              << vdec_status_.dec_err.set_pic_buf_size_err
-              << ", format_err: " << vdec_status_.dec_err.format_err
-              << ", stream_unsupport: " << vdec_status_.dec_err.stream_unsupport
-              << ", pack_err: " << vdec_status_.dec_err.pack_err
-              << ", stream_size_over: " << vdec_status_.dec_err.stream_size_over
-              << ", stream not release: "
-              << vdec_status_.dec_err.stream_not_release << std::endl;
+    std::stringstream ss;
+    ss << "INFO: \n"
+       << " type: " << vdec_status_.type
+       << ", left bytes: " << vdec_status_.left_stream_bytes
+       << ", left frames: " << vdec_status_.left_stream_frames
+       << ", left decoded_frames: " << vdec_status_.left_decoded_frames
+       << ", is_started: " << vdec_status_.is_started
+       << ", recv_stream_frames: " << vdec_status_.recv_stream_frames
+       << ", dec_stream_frames: " << vdec_status_.dec_stream_frames
+       << ", dec_w: " << vdec_status_.width
+       << ", dec_h: " << vdec_status_.height << std::endl
+       << "VDEC status error: \n"
+       << " set_pic_size_err: " << vdec_status_.dec_err.set_pic_size_err
+       << ", set_protocol_num_err: "
+       << vdec_status_.dec_err.set_protocol_num_err
+       << ", set_ref_num_err: " << vdec_status_.dec_err.set_ref_num_err
+       << ", set_pic_buf_size_err: "
+       << vdec_status_.dec_err.set_pic_buf_size_err
+       << ", format_err: " << vdec_status_.dec_err.format_err
+       << ", stream_unsupport: " << vdec_status_.dec_err.stream_unsupport
+       << ", pack_err: " << vdec_status_.dec_err.pack_err
+       << ", stream_size_over: " << vdec_status_.dec_err.stream_size_over
+       << ", stream not release: " << vdec_status_.dec_err.stream_not_release
+       << std::endl;
+    logger.log(ERROR, ss.str());
     return false;
   } else {
-    std::cout << "Received frame-1 with width: " << frame_L.video_frame.width
-              << std::endl;
-  }
-  if (mb_step_mode) {
-    std::cout << "set mb_decode_step_on" << std::endl;
-    mb_decode_step_on = true;
-  }
+    logger.log(DEBUG, "Received frame_Low with width: ");
+    if (mb_step_mode) {
+      logger.log(DEBUG, "set mb_decode_step_on");
+      mb_decode_step_on = true;
+    }
 
-  return true;
+    return true;
+  }
 }
 
 // std::atomic<bool> running(true);
@@ -672,4 +673,5 @@ bool HardwareDecoder::release_frames() {
     sample_print("vpss release chn frame-1 Err(%#x)\n", ret);
     return false;
   }
+  // mb_decode_step_on = true;
 }
