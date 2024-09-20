@@ -19,7 +19,7 @@ typedef struct {
 
 class IVE_MD {
 public:
-  IVE_MD();
+  IVE_MD(bool sys_init=true);
   ~IVE_MD();
   int process(const unsigned char* p_image, ot_ive_ccblob *blob);
   int process(ot_video_frame_info &frame, ot_ive_ccblob *blob);

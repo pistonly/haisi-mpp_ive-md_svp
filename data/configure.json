@@ -3,7 +3,7 @@
     "om_path": "/home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/yolov8n_air-little-obj_32-roi_640x640_FP16.om",
     "tcp_id": "172.23.24.52",
     "tcp_port": "8880",
-    "output_dir": "/mnt/disk/tmp/",
+    "output_dir": "/mnt/data/tmp/",
     "roi_hw": 32,
     "save_result": true,
     "decode_step_mode": true,

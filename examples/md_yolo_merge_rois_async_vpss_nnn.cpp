@@ -1,9 +1,10 @@
-#include "ffmpeg_vdec_vpss.hpp"
 #include "ive_md.hpp"
-#include "yolov8_nnn.hpp"
 #include "ot_common_ive.h"
+#include "ot_common_video.h"
 #include "ot_type.h"
+#include "ss_mpi_vpss.h"
 #include "utils.hpp"
+#include "yolov8_nnn.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
 #include <atomic>
@@ -32,9 +33,52 @@ using json = nlohmann::json;
 
 extern Logger logger;
 
-
 std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
+
+bool get_frames(std::vector<ot_video_frame_info> &v_frames) {
+  std::vector<std::pair<td_s32, td_s32>> grp_chns{
+      {0, 0}, {0, 1}, {2, 2}, {2, 3}};
+  if (grp_chns.size() > v_frames.size()) {
+    logger.log(ERROR,
+               "frame number should not less than that of grp_chn pairs");
+  }
+  for (auto i = 0; i < grp_chns.size(); ++i) {
+    std::pair<td_s32, td_s32> &grp_chn_i = grp_chns[i];
+    td_s32 &vpss_grp = grp_chn_i.first;
+    td_s32 &vpss_chn = grp_chn_i.second;
+    td_s32 ret =
+        ss_mpi_vpss_get_chn_frame(vpss_grp, vpss_chn, &v_frames[i], 100);
+    if (ret != TD_SUCCESS) {
+      logger.log(ERROR, "get vpss chn error, grp: ", vpss_grp,
+                 " chn: ", vpss_chn, "Err code: ", ret);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool release_frames(std::vector<ot_video_frame_info> &v_frames) {
+  std::vector<std::pair<td_s32, td_s32>> grp_chns{
+      {0, 0}, {0, 1}, {2, 2}, {2, 3}};
+  if (grp_chns.size() > v_frames.size()) {
+    logger.log(ERROR,
+               "frame number should not less than that of grp_chn pairs");
+  }
+  for (auto i = 0; i < grp_chns.size(); ++i) {
+    std::pair<td_s32, td_s32> &grp_chn_i = grp_chns[i];
+    td_s32 &vpss_grp = grp_chn_i.first;
+    td_s32 &vpss_chn = grp_chn_i.second;
+    td_s32 ret =
+        ss_mpi_vpss_release_chn_frame(vpss_grp, vpss_chn, &v_frames[i]);
+    if (ret != TD_SUCCESS) {
+      logger.log(ERROR, "release vpss chn error, grp: ", vpss_grp,
+                 " chn: ", vpss_chn, "Err code: ", ret);
+      return false;
+    }
+  }
+  return true;
+}
 
 int main(int argc, char *argv[]) {
   std::cout << "Usage: " << argv[0] << " <config_path>" << std::endl;
@@ -76,8 +120,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
-      "output_dir", "roi_hw",  "save_result", "decode_step_mode"};
+      "rtsp_url",   "om_path", "tcp_id",     "tcp_port",
+      "output_dir", "roi_hw",  "save_result"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -92,7 +136,6 @@ int main(int argc, char *argv[]) {
   std::string output_dir = config_data["output_dir"];
   const int roi_hw = config_data["roi_hw"];
   bool b_save_result = config_data["save_result"];
-  bool decode_step_mode = config_data["decode_step_mode"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
   const int merged_hw = roi_hw * 20;
@@ -109,11 +152,8 @@ int main(int argc, char *argv[]) {
 
   // initialize md
   // NOTE: md should initialized before SVPNNN
-  IVE_MD md;
-
-  // initialize ffmpeg_vdec_vpss
-  HardwareDecoder decoder(rtsp_url, decode_step_mode);
-  decoder.start_decode();
+  bool b_sys_init = false;
+  IVE_MD md(b_sys_init);
 
   // 初始化NPU
   YOLOV8_new yolov8(omPath, output_dir);
@@ -137,22 +177,26 @@ int main(int argc, char *argv[]) {
   std::vector<unsigned char> img(IMAGE_SIZE);
   std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
-  while (running && !decoder.is_ffmpeg_exit()) {
+  std::vector<ot_video_frame_info> v_frame_chns(4);
+
+  while (running) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    if (decoder.get_frame_without_release()) {
+    if (get_frames(v_frame_chns)) {
+      auto &frame_H_0 = v_frame_chns[0];
       copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
-                             &decoder.frame_H);
+                             &frame_H_0);
     } else {
       break;
     }
 
     auto md_start = std::chrono::high_resolution_clock::now();
-    md.process(decoder.frame_L, &blob);
+    auto &frame_L_0 = v_frame_chns[1];
+    md.process(frame_L_0, &blob);
     logger.log(DEBUG,
                "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
 
-    decoder.release_frames();
+    release_frames(v_frame_chns);
 
     auto md_end = std::chrono::high_resolution_clock::now();
     // 合并ROI
@@ -209,4 +253,3 @@ int main(int argc, char *argv[]) {
   }
   return 0;
 }
-

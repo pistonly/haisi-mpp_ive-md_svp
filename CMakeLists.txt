@@ -76,8 +76,16 @@ add_executable(md_yolo_merged_roi_async_nnn ./examples/md_yolo_merge_rois_async_
 add_executable(md_yolo_merged_roi_async_vdec_vpss ./examples/md_yolo_merge_rois_async_vdec_vpss.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC}
   ${UTILS_SRC})
 
+FILE(GLOB YOLOV8_NNN_SRC ./src/yolov8_nnn.cpp)
 add_executable(md_yolo_merged_roi_async_vdec_vpss_nnn ./examples/md_yolo_merge_rois_async_vdec_vpss_nnn.cpp
-  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
+add_executable(md_yolo_merged_roi_async_vpss_nnn ./examples/md_yolo_merge_rois_async_vpss_nnn.cpp
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
+add_executable(test_vpss_get_chn ./test/test_vpss_get_chn.cpp  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
+add_executable(test_md_vpss ./test/test_md_vpss.cpp  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
+
 
 include(cmake/ive_link_libs.cmake)
 target_link_libraries(md_yolo_rois
@@ -153,7 +161,6 @@ target_link_libraries(md_yolo_merged_roi_async_vdec_vpss
 
 target_link_libraries(md_yolo_merged_roi_async_vdec_vpss_nnn
   ive_md
-  svp_acl
   ascendcl
   pthread
   ${YOLO_LIB}
@@ -167,5 +174,34 @@ target_link_libraries(md_yolo_merged_roi_async_vdec_vpss_nnn
   avutil
   swresample
   swscale
+  stdc++ # note this line is important
+)
+
+target_link_libraries(md_yolo_merged_roi_async_vpss_nnn
+  ive_md
+  pthread
+  ${YOLO_LIB}
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${ACL_LIBS}
+  ${IVE_LINK_LIBS}
+  ascendcl
+  stdc++ # note this line is important
+)
+
+target_link_libraries(test_vpss_get_chn
+  pthread
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${IVE_LINK_LIBS}
+  stdc++ # note this line is important
+)
+
+target_link_libraries(test_md_vpss
+  ive_md
+  pthread
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${IVE_LINK_LIBS}
   stdc++ # note this line is important
 )
