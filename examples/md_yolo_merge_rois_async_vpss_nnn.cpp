@@ -36,24 +36,6 @@ extern Logger logger;
 std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
 
-// 时间测量工具类
-class Timer {
-public:
-  Timer(const std::string &name)
-      : name_(name), start_(std::chrono::high_resolution_clock::now()) {}
-  ~Timer() {
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start_)
-            .count();
-    logger.log(DEBUG, name_, " took ", duration, " ms");
-  }
-
-private:
-  std::string name_;
-  std::chrono::time_point<std::chrono::high_resolution_clock> start_;
-};
-
 // 提取通用的错误处理函数
 bool handle_error(const char *action, int vpss_grp, int vpss_chn, int ret) {
   if (ret != TD_SUCCESS) {
@@ -179,9 +161,13 @@ int main(int argc, char *argv[]) {
   std::vector<unsigned char> merged_roi(merged_size, 0);
   ot_ive_ccblob blob = {0};
 
+  auto start_time = std::chrono::high_resolution_clock::now();
   while (running) {
-    if (frame_id % 100 == 0)
-      logger.log(INFO, "frame id: ", frame_id);
+    if (frame_id % 100 == 0) {
+      auto _now = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::seconds>(_now - start_time).count();
+      logger.log(INFO, "frame id: ", frame_id, " fps: ", frame_id * 1.f / duration);
+    }
     Timer frame_timer("Total Frame Processing");
 
     // 获取帧

@@ -129,4 +129,32 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
                          const std::string &out_dir, 
                          const std::string &filename);
 
+// 在编译时定义 ENABLE_TIMER 即可启用 Timer 功能
+// 可以在编译时通过 -DENABLE_TIMER 来打开
+
+#ifdef ENABLE_TIMER
+class Timer {
+public:
+  Timer(const std::string &name)
+      : name_(name), start_(std::chrono::high_resolution_clock::now()) {}
+  ~Timer() {
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start_)
+            .count();
+    logger.log(DEBUG, name_, " took ", duration, " ms");
+  }
+
+private:
+  std::string name_;
+  std::chrono::time_point<std::chrono::high_resolution_clock> start_;
+};
+#else
+// 当没有启用 Timer 时，Timer 是一个空类，不做任何操作
+class Timer {
+public:
+  Timer(const std::string &) {}
+};
+#endif
+
 #endif
