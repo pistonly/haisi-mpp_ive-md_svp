@@ -143,7 +143,8 @@ int main(int argc, char *argv[]) {
 
   // Pre-allocate buffers outside the loop
   std::vector<unsigned char> merged_roi(merged_size, 0);
-  ot_ive_ccblob blob = {0};
+  ot_ive_ccblob blob_0 = {0};
+  ot_ive_ccblob blob_1 = {0};
 
   char absolute_path[PATH_MAX];
 
@@ -153,10 +154,11 @@ int main(int argc, char *argv[]) {
   // initialize md
   // NOTE: md should initialized before SVPNNN
   bool b_sys_init = false;
-  IVE_MD md(b_sys_init);
+  IVE_MD md_0(b_sys_init);
+  IVE_MD md_1(b_sys_init);
 
   // 初始化NPU
-  YOLOV8_new yolov8(omPath, output_dir);
+  YOLOV8_nnn_2chns yolov8(omPath, output_dir);
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
@@ -175,59 +177,99 @@ int main(int argc, char *argv[]) {
 
   // Pre-allocate buffers
   std::vector<unsigned char> img(IMAGE_SIZE);
-  std::vector<unsigned char> img_high(IMAGE_SIZE2);
+  std::vector<unsigned char> img_high_0(IMAGE_SIZE2);
+  std::vector<unsigned char> img_high_1(IMAGE_SIZE2);
 
   std::vector<ot_video_frame_info> v_frame_chns(4);
 
+  auto last_start_time = std::chrono::high_resolution_clock::now();
   while (running) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    if (get_frames(v_frame_chns)) {
-      auto &frame_H_0 = v_frame_chns[0];
-      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
-                             &frame_H_0);
-    } else {
+    if (!get_frames(v_frame_chns)) {
       break;
     }
+    auto get_frame_end = std::chrono::high_resolution_clock::now();
 
-    auto md_start = std::chrono::high_resolution_clock::now();
+    /* -------------------- process ch-0 -------------------- */
+    auto &frame_H_0 = v_frame_chns[0];
+    copy_yuv420_from_frame(reinterpret_cast<char *>(img_high_0.data()),
+                           &frame_H_0);
+
+    auto md_start_0 = std::chrono::high_resolution_clock::now();
     auto &frame_L_0 = v_frame_chns[1];
-    md.process(frame_L_0, &blob);
-    logger.log(DEBUG,
-               "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
+    md_0.process(frame_L_0, &blob_0);
+    logger.log(DEBUG, "instance number of ch0: ",
+               static_cast<int>(blob_0.info.bits.rgn_num));
 
-    release_frames(v_frame_chns);
-
-    auto md_end = std::chrono::high_resolution_clock::now();
+    auto md_end_0 = std::chrono::high_resolution_clock::now();
     // 合并ROI
     std::vector<std::pair<int, int>> top_lefts;
-    merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f, 2160,
-               3840, merged_hw, merged_hw);
-    auto merge_end = std::chrono::high_resolution_clock::now();
+    merge_rois(img_high_0.data(), &blob_0, merged_roi, top_lefts, 8.0f, 8.0f,
+               2160, 3840, merged_hw, merged_hw);
+    auto merge_end_0 = std::chrono::high_resolution_clock::now();
 
     // // debug
     // // save merged_roi
     // save_merged_rois(merged_roi, output_dir, frame_id);
 
-    auto yolov8_syn = std::chrono::high_resolution_clock::now();
+    auto yolov8_syn_0 = std::chrono::high_resolution_clock::now();
     sync_flag = yolov8.SynchronizeStream();
     if (sync_flag != SUCCESS) {
       logger.log(ERROR, "synchronizeStream failed");
       return 1;
     }
-    auto yolov8_syn_end = std::chrono::high_resolution_clock::now();
+    auto yolov8_syn_end_0 = std::chrono::high_resolution_clock::now();
 
     // 输入到NPU, 推理
     yolov8.m_toplefts = std::move(top_lefts);
-    yolov8.update_imageId(frame_id++);
+    int current_ch = 0;
+    yolov8.update_imageId(frame_id, current_ch);
     yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                        merged_size);
     yolov8.ExecuteRPN_Async();
-    auto yolov8_async_end = std::chrono::high_resolution_clock::now();
 
-    auto end_time = std::chrono::high_resolution_clock::now();
+    /* -------------------- process ch-1 -------------------- */
+
+    auto ch1_start = std::chrono::high_resolution_clock::now();
+    auto &frame_H_1 = v_frame_chns[2];
+    copy_yuv420_from_frame(reinterpret_cast<char *>(img_high_1.data()),
+                           &frame_H_1);
+    release_frames(v_frame_chns);
+
+    auto md_start_1 = std::chrono::high_resolution_clock::now();
+    auto &frame_L_1 = v_frame_chns[3];
+    md_1.process(frame_L_1, &blob_1);
+    logger.log(DEBUG, "instance number of ch1: ",
+               static_cast<int>(blob_1.info.bits.rgn_num));
+    auto md_end_1 = std::chrono::high_resolution_clock::now();
+
+    // merge
+    std::vector<std::pair<int, int>> top_lefts_1;
+    merge_rois(img_high_0.data(), &blob_0, merged_roi, top_lefts_1, 8.0f, 8.0f,
+               2160, 3840, merged_hw, merged_hw);
+
+    auto merge_end_1 = std::chrono::high_resolution_clock::now();
+
+    sync_flag = yolov8.SynchronizeStream();
+    if (sync_flag != SUCCESS) {
+      logger.log(ERROR, "synchronizeStream failed");
+      return 1;
+    }
+    auto yolov8_syn_end_1 = std::chrono::high_resolution_clock::now();
+
+    // 输入到NPU, 推理
+    yolov8.m_toplefts = std::move(top_lefts_1);
+    current_ch = 1;
+    yolov8.update_imageId(frame_id++, current_ch);
+    yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
+                       merged_size);
+    yolov8.ExecuteRPN_Async();
+
+    auto yolov8_async_end_time = std::chrono::high_resolution_clock::now();
+
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        end_time - start_time);
+        last_start_time - start_time);
     auto decode_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
         md_start - start_time);
     auto md_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -244,6 +286,7 @@ int main(int argc, char *argv[]) {
         "ms, Decode: ", decode_cost.count(), "ms, MD: ", md_cost.count(),
         "ms, Merge: ", merge_cost.count(), "ms, Sync: ", syn_cost.count(),
         "ms, Async: ", asyn_cost.count(), "ms");
+    last_start_time = start_time;
   }
 
   sync_flag = yolov8.SynchronizeStream();

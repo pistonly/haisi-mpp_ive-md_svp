@@ -204,3 +204,20 @@ void save_detect_results(const std::vector<std::vector<float>> &bbox,
   }
   save_detect_results(decs, out_dir, imageId, prefix);
 }
+
+void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const std::string &out_dir,
+                         const std::string &filename) {
+  std::ofstream outFile(filename, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << oss.str() << " for writing."
+              << std::endl;
+    return;
+  }
+
+  std::vector<char> serialized_data = serialize(decs);
+  outFile.write(reinterpret_cast<const char *>(serialized_data.data()),
+                serialized_data.size());
+  outFile.close();
+  return;
+}
