@@ -736,8 +736,8 @@ td_s32 sample_common_ive_dma_image(ot_video_frame_info *frame_info, ot_svp_dst_i
     src_data.width = frame_info->video_frame.width;
     src_data.height = frame_info->video_frame.height;
     src_data.stride = frame_info->video_frame.stride[0];
-    /* sample_svp_trace_debug("\n dma src size, width: %d, height:%d", src_data.width, */
-    /*                        src_data.height); */
+    /* sample_svp_trace_debug("\n dma src size, width: %d, height:%d, stride:%d", src_data.width, */
+    /*                        src_data.height, src_data.stride); */
 
     /* fill dst */
     dst_data.virt_addr = dst->virt_addr[0];
@@ -745,8 +745,8 @@ td_s32 sample_common_ive_dma_image(ot_video_frame_info *frame_info, ot_svp_dst_i
     dst_data.width = dst->width;
     dst_data.height = dst->height;
     dst_data.stride = dst->stride[0];
-    /* sample_svp_trace_debug("\n dma dst size, width: %d, height:%d", dst_data.width, */
-    /*                        dst_data.height); */
+    /* sample_svp_trace_debug("\n dma dst size, width: %d, height:%d, stride:%d", dst_data.width, */
+    /*                        dst_data.height, dst_data.stride); */
 
     ret = ss_mpi_ive_dma(&handle, &src_data, &dst_data, &ctrl, is_instant);
     sample_svp_check_exps_return(ret != TD_SUCCESS, ret, SAMPLE_SVP_ERR_LEVEL_ERROR,

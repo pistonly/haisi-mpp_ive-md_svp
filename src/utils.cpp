@@ -208,9 +208,9 @@ void save_detect_results(const std::vector<std::vector<float>> &bbox,
 void save_detect_results(const std::vector<std::vector<float>> &decs,
                          const std::string &out_dir,
                          const std::string &filename) {
-  std::ofstream outFile(filename, std::ios::binary);
+  std::ofstream outFile(out_dir + filename, std::ios::binary);
   if (!outFile) {
-    std::cerr << "Error opening file " << oss.str() << " for writing."
+    std::cerr << "Error opening file " << filename << " for writing."
               << std::endl;
     return;
   }

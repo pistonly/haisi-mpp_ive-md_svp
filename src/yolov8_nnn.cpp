@@ -167,8 +167,8 @@ YOLOV8_new::~YOLOV8_new() {
 }
 
 YOLOV8_nnn_2chns::YOLOV8_nnn_2chns(const std::string &modelPath,
-                                   const std::string &output_dir = "./",
-                                   const std::string &aclJSON = "")
+                                   const std::string &output_dir,
+                                   const std::string &aclJSON)
     : NNNYOLOV8_CALLBACK(modelPath, aclJSON), m_imageId_0(0), m_imageId_1(0) {
   char c_output_dir[PATH_MAX];
   if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
@@ -329,4 +329,12 @@ void YOLOV8_nnn_2chns::CallbackFunc(void *data) {
 
   logger.log(DEBUG, "Post-processing cost: ", duration.count(),
              "ms, D2H cost: ", d2h_cost.count(), "ms");
+}
+
+YOLOV8_nnn_2chns::~YOLOV8_nnn_2chns() {
+  if (mb_sock_connected) {
+    close(m_sock);
+    mb_sock_connected = false;
+    logger.log(INFO, "Disconnected from TCP server.");
+  }
 }
