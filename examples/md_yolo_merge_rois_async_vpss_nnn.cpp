@@ -180,6 +180,8 @@ int main(int argc, char *argv[]) {
   ot_ive_ccblob blob = {0};
 
   while (running) {
+    if (frame_id % 100 == 0)
+      logger.log(INFO, "frame id: ", frame_id);
     Timer frame_timer("Total Frame Processing");
 
     // 获取帧

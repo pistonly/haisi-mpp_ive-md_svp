@@ -6,7 +6,7 @@ import time
 
 url = "rtsp://172.23.24.52:8554/test"
 # tcp_data_dir = Path("/home/liuyang/Documents/haisi/ai-sd3403/ai-sd3403/test/test_tcp/x86/build/")
-tcp_data_dir = Path("/home/liuyang/Documents/tmp/nnn_debug/")
+tcp_data_dir = Path("/home/liuyang/Documents/tmp/md/")
 
 
 def deserialize(buffer):

@@ -138,6 +138,9 @@ int main(int argc, char *argv[]) {
   std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
   while (running && !decoder.is_ffmpeg_exit()) {
+    if (frame_id % 100 == 0)
+      logger.log(INFO, "frame id: ", frame_id);
+
     auto start_time = std::chrono::high_resolution_clock::now();
 
     if (decoder.get_frame_without_release()) {
