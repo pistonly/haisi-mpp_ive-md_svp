@@ -24,6 +24,7 @@ public:
   std::vector<std::vector<char>> m_outputs;
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId;
+  uint64_t m_timestamp=0;
   int m_input_h, m_input_w;
   float m_conf_thres = default_conf_thres;
   float m_iou_thres = default_iou_thres;
@@ -42,7 +43,7 @@ public:
   void connect_to_tcp(const std::string &ip, const int port);
 
   void CallbackFunc(void *data) override;
-  void update_imageId(int id) { m_imageId = id; }
+  void update_imageId(int id, uint64_t timestamp) { m_imageId = id; m_timestamp = timestamp;}
 };
 
 class YOLOV8_nnn_2chns : public NNNYOLOV8_CALLBACK {

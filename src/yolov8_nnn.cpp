@@ -140,12 +140,13 @@ void YOLOV8_new::CallbackFunc(void *data) {
       real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
     }
 
+    std::stringstream ss;
+    ss << "decs_image_" << m_imageId << "_" << m_timestamp << ".bin";
     if (mb_sock_connected) {
-      std::string fileName = "decs_image_" + std::to_string(m_imageId) + ".bin";
-      send_file_and_data(m_sock, fileName, real_decs);
+      send_file_and_data(m_sock, ss.str(), real_decs);
     }
     if (mb_save_results) {
-      save_detect_results(real_decs, m_output_dir, m_imageId);
+      save_detect_results(real_decs, m_output_dir, ss.str());
     }
   }
   auto postp_end = std::chrono::high_resolution_clock::now();

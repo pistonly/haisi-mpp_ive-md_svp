@@ -164,8 +164,11 @@ int main(int argc, char *argv[]) {
   while (running) {
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::seconds>(_now - start_time).count();
-      logger.log(INFO, "frame id: ", frame_id, " fps: ", frame_id * 1.f / duration);
+      auto duration =
+          std::chrono::duration_cast<std::chrono::seconds>(_now - start_time)
+              .count();
+      logger.log(INFO, "frame id: ", frame_id,
+                 " fps: ", frame_id * 1.f / duration);
     }
     Timer frame_timer("Total Frame Processing");
 
@@ -196,8 +199,8 @@ int main(int argc, char *argv[]) {
       std::vector<std::pair<int, int>> top_lefts;
       {
         Timer merge_timer("Merge ROI for Channel 0");
-        merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f,
-                   8.0f, 2160, 3840, merged_hw, merged_hw);
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
+                   2160, 3840, merged_hw, merged_hw);
       }
 
       // 推理
@@ -209,7 +212,8 @@ int main(int argc, char *argv[]) {
         }
         yolov8.m_toplefts = std::move(top_lefts);
         int current_ch = 0;
-        yolov8.update_imageId(frame_id, v_frame_chns[1], current_ch);
+        yolov8.update_imageId(frame_id, v_frame_chns[1].video_frame.pts,
+                              current_ch);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();
@@ -236,8 +240,8 @@ int main(int argc, char *argv[]) {
       std::vector<std::pair<int, int>> top_lefts_1;
       {
         Timer merge_timer("Merge ROI for Channel 1");
-        merge_rois(img_high.data(), &blob, merged_roi, top_lefts_1, 8.0f,
-                   8.0f, 2160, 3840, merged_hw, merged_hw);
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts_1, 8.0f, 8.0f,
+                   2160, 3840, merged_hw, merged_hw);
       }
 
       // 推理
@@ -249,7 +253,8 @@ int main(int argc, char *argv[]) {
         }
         yolov8.m_toplefts = std::move(top_lefts_1);
         int current_ch = 1;
-        yolov8.update_imageId(frame_id, v_frame_chns[3], current_ch);
+        yolov8.update_imageId(frame_id, v_frame_chns[3].video_frame.pts,
+                              current_ch);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();

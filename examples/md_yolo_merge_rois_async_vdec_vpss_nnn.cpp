@@ -137,76 +137,69 @@ int main(int argc, char *argv[]) {
   std::vector<unsigned char> img(IMAGE_SIZE);
   std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
+  auto start_time = std::chrono::high_resolution_clock::now();
   while (running && !decoder.is_ffmpeg_exit()) {
-    if (frame_id % 100 == 0)
-      logger.log(INFO, "frame id: ", frame_id);
-
-    auto start_time = std::chrono::high_resolution_clock::now();
-
-    if (decoder.get_frame_without_release()) {
-      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
-                             &decoder.frame_H);
-    } else {
-      break;
+    if (frame_id % 100 == 0) {
+      auto _now = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::seconds>(_now - start_time)
+              .count();
+      logger.log(INFO, "frame id: ", frame_id,
+                 " fps: ", frame_id * 1.f / duration);
     }
 
-    auto md_start = std::chrono::high_resolution_clock::now();
-    md.process(decoder.frame_L, &blob);
-    logger.log(DEBUG,
-               "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
+    {
+      Timer timer("Get Frames");
+      if (decoder.get_frame_without_release()) {
+        copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
+                               &decoder.frame_H);
+      } else {
+        break;
+      }
+    }
 
-    decoder.release_frames();
+    {
+      Timer timer("md");
+      md.process(decoder.frame_L, &blob);
+      logger.log(DEBUG,
+                 "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
 
-    auto md_end = std::chrono::high_resolution_clock::now();
+      decoder.release_frames();
+    }
+
     // 合并ROI
     std::vector<std::pair<int, int>> top_lefts;
-    merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f, 2160,
-               3840, merged_hw, merged_hw);
-    auto merge_end = std::chrono::high_resolution_clock::now();
+    {
+      Timer timer("merge");
+      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
+                 2160, 3840, merged_hw, merged_hw);
+    }
 
     // // debug
     // // save merged_roi
     // save_merged_rois(merged_roi, output_dir, frame_id);
 
-    auto yolov8_syn = std::chrono::high_resolution_clock::now();
-    sync_flag = yolov8.SynchronizeStream();
-    if (sync_flag != SUCCESS) {
-      logger.log(ERROR, "synchronizeStream failed");
-      return 1;
+    {
+      Timer timer("sync");
+      sync_flag = yolov8.SynchronizeStream();
+      if (sync_flag != SUCCESS) {
+        logger.log(ERROR, "synchronizeStream failed");
+        return 1;
+      }
     }
-    auto yolov8_syn_end = std::chrono::high_resolution_clock::now();
 
     // 输入到NPU, 推理
-    yolov8.m_toplefts = std::move(top_lefts);
-    yolov8.update_imageId(frame_id++);
-    yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
-                       merged_size);
-    yolov8.ExecuteRPN_Async();
-    auto yolov8_async_end = std::chrono::high_resolution_clock::now();
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        end_time - start_time);
-    auto decode_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        md_start - start_time);
-    auto md_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        md_end - md_start);
-    auto merge_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        merge_end - md_end);
-    auto syn_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        yolov8_syn_end - yolov8_syn);
-    auto asyn_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-        yolov8_async_end - yolov8_syn_end);
-
-    logger.log(
-        DEBUG, "Frame ", frame_id, " processed. Duration: ", duration.count(),
-        "ms, Decode: ", decode_cost.count(), "ms, MD: ", md_cost.count(),
-        "ms, Merge: ", merge_cost.count(), "ms, Sync: ", syn_cost.count(),
-        "ms, Async: ", asyn_cost.count(), "ms");
+    {
+      Timer timer("yolov8");
+      yolov8.m_toplefts = std::move(top_lefts);
+      yolov8.update_imageId(frame_id++, decoder.frame_H.video_frame.pts);
+      yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
+                         merged_size);
+      yolov8.ExecuteRPN_Async();
+    }
   }
 
-  sync_flag = yolov8.SynchronizeStream();
-  if (sync_flag != SUCCESS) {
+  if (yolov8.SynchronizeStream() != SUCCESS) {
     logger.log(ERROR, "synchronizeStream failed");
     return 1;
   }
