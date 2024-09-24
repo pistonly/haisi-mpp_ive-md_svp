@@ -6,12 +6,12 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
-#include <mutex>
 
 // 定义日志级别
 enum LogLevel { DEBUG, INFO, WARNING, ERROR };
@@ -126,7 +126,7 @@ void save_detect_results(const std::vector<std::vector<float>> &bbox,
                          const std::string &prefix = "");
 
 void save_detect_results(const std::vector<std::vector<float>> &decs,
-                         const std::string &out_dir, 
+                         const std::string &out_dir,
                          const std::string &filename);
 
 // 在编译时定义 ENABLE_TIMER 即可启用 Timer 功能

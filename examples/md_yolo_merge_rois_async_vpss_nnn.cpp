@@ -154,8 +154,7 @@ int main(int argc, char *argv[]) {
 
   // Pre-allocate buffers
   std::vector<unsigned char> img(IMAGE_SIZE);
-  std::vector<unsigned char> img_high_0(IMAGE_SIZE2);
-  std::vector<unsigned char> img_high_1(IMAGE_SIZE2);
+  std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
   std::vector<ot_video_frame_info> v_frame_chns(4);
   std::vector<unsigned char> merged_roi(merged_size, 0);
@@ -181,7 +180,7 @@ int main(int argc, char *argv[]) {
     {
       Timer timer("Process Channel 0");
       auto &frame_H_0 = v_frame_chns[0];
-      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high_0.data()),
+      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
                              &frame_H_0);
 
       // MD处理和合并
@@ -197,7 +196,7 @@ int main(int argc, char *argv[]) {
       std::vector<std::pair<int, int>> top_lefts;
       {
         Timer merge_timer("Merge ROI for Channel 0");
-        merge_rois(img_high_0.data(), &blob, merged_roi, top_lefts, 8.0f,
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f,
                    8.0f, 2160, 3840, merged_hw, merged_hw);
       }
 
@@ -221,7 +220,7 @@ int main(int argc, char *argv[]) {
     {
       Timer timer("Process Channel 1");
       auto &frame_H_1 = v_frame_chns[2];
-      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high_1.data()),
+      copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
                              &frame_H_1);
 
       // MD处理和合并
@@ -237,7 +236,7 @@ int main(int argc, char *argv[]) {
       std::vector<std::pair<int, int>> top_lefts_1;
       {
         Timer merge_timer("Merge ROI for Channel 1");
-        merge_rois(img_high_1.data(), &blob, merged_roi, top_lefts_1, 8.0f,
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts_1, 8.0f,
                    8.0f, 2160, 3840, merged_hw, merged_hw);
       }
 
