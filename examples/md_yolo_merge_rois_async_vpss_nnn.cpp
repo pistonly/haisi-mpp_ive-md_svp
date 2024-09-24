@@ -209,7 +209,7 @@ int main(int argc, char *argv[]) {
         }
         yolov8.m_toplefts = std::move(top_lefts);
         int current_ch = 0;
-        yolov8.update_imageId(frame_id, current_ch);
+        yolov8.update_imageId(frame_id, v_frame_chns[1], current_ch);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();
@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
         }
         yolov8.m_toplefts = std::move(top_lefts_1);
         int current_ch = 1;
-        yolov8.update_imageId(frame_id, current_ch);
+        yolov8.update_imageId(frame_id, v_frame_chns[3], current_ch);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();

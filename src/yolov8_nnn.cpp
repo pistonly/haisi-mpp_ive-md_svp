@@ -237,6 +237,18 @@ void YOLOV8_nnn_2chns::update_imageId(int id, int ch) {
   }
 }
 
+void YOLOV8_nnn_2chns::update_imageId(int id, uint64_t time_stamp, int ch) {
+  if (ch == 0) {
+    m_current_ch = 0;
+    m_imageId_0 = id;
+    m_timestamp_0 = time_stamp;
+  } else if (ch == 1) {
+    m_current_ch = 1;
+    m_imageId_1 = id;
+    m_timestamp_1 = time_stamp;
+  }
+}
+
 void YOLOV8_nnn_2chns::CallbackFunc(void *data) {
   logger.log(DEBUG, "callback from yolov8_new");
   auto d2h_start = std::chrono::high_resolution_clock::now();
@@ -309,9 +321,9 @@ void YOLOV8_nnn_2chns::CallbackFunc(void *data) {
 
     std::stringstream ss;
     if (m_current_ch == 0) {
-      ss << "decs_image_ch-0_" << m_imageId_0 << ".bin";
+      ss << "decs_image_ch-0_" << m_imageId_0 << "_" << m_timestamp_0 << ".bin";
     } else {
-      ss << "decs_image_ch-1_" << m_imageId_1 << ".bin";
+      ss << "decs_image_ch-1_" << m_imageId_1 << "_" << m_timestamp_1 << ".bin";
     }
 
     if (mb_sock_connected) {

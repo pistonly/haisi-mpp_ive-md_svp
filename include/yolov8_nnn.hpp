@@ -2,6 +2,7 @@
 #define YOLOV8_NEW_HPP
 #include "nnn_yolov8_callback.hpp"
 #include "post_process_tools.hpp"
+#include <cstdint>
 #include <half.hpp>
 #include <string>
 #include <vector>
@@ -56,6 +57,7 @@ public:
   std::vector<std::vector<char>> m_outputs;
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId_0, m_imageId_1;
+  uint64_t m_timestamp_0=0, m_timestamp_1=0;
   int m_input_h, m_input_w;
   float m_conf_thres = default_conf_thres;
   float m_iou_thres = default_iou_thres;
@@ -76,6 +78,7 @@ public:
 
   void CallbackFunc(void *data) override;
   void update_imageId(int id, int ch);
+  void update_imageId(int id, uint64_t time_stamp, int ch);
 };
 
 #endif
