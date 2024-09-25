@@ -114,6 +114,77 @@ int save_merged_rois(const std::vector<unsigned char> &merged_roi,
  * @param[in] frame Description
  */
 void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame);
+/**
+ * @brief 将YUV420格式的图像帧分割为四个宽高均为一半的小图像。
+ *
+ * @param outputImageDatas 用于存储四个输出图像数据的指针数组。
+ * 每个指针应指向已分配足够内存的缓冲区，用于存储分割后的小图像数据。
+ * @param frame 指向输入的YUV420格式的图像帧。
+ *
+ * 该函数首先映射输入帧的数据，然后将其分割为四个象限，
+ * 将每个象限的数据复制到提供的输出图像数据缓冲区中。
+ *
+ * @note 输入的帧应为YUV420格式。
+ *
+ * @warning 在调用此函数之前，必须为 outputImageDatas
+ * 数组中的每个指针分配足够的内存。 每个缓冲区的大小应为： (width/2) *
+ * (height/2) * 3 / 2 字节。
+ */
+
+void copy_split_yuv420_from_frame(unsigned char *outputImageDatas[],
+                                  ot_video_frame_info *frame);
+
+void copy_split_yuv420_from_frame(
+    std::vector<std::vector<unsigned char>> &outputImageDatas,
+    ot_video_frame_info *frame);
+
+/**
+ * @brief 分割YUV420sp（NV12/NV21）格式的图像为四个宽高均为一半的小图像。
+ *
+ * @param inputImageData 输入的YUV420sp图像数据指针。
+ * @param width 输入图像的宽度。
+ * @param height 输入图像的高度。
+ * @param outputImageDatas 用于存储四个输出图像数据的指针数组。
+ *
+ * 该函数将输入图像分为四个象限，并将数据复制到提供的输出图像数据缓冲区中。
+ * 每个输出图像都将以YUV420sp格式存储，尺寸为 (width/2) x (height/2)。
+ *
+ * @note 调用此函数前，必须为 outputImageDatas
+ * 数组中的每个指针分配足够的内存。 每个缓冲区的大小应为： (width/2) *
+ * (height/2) * 3 / 2 字节。
+ *
+ * @warning 该函数假设输入的图像数据为YUV420sp格式（NV12）。
+ * 如果您的数据为NV21格式，需要在复制UV平面数据时交换U和V分量。
+ */
+void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
+                   unsigned char *outputImageDatas[4]);
+
+/**
+ * @brief 将四个 YUV420sp（NV12/NV21）格式的小图像合成为一个原始尺寸的大图像。
+ *
+ * @param v_yuv420sp_4
+ * 存储四个输入小图像数据的向量，每个元素是一个字节向量，表示一张小图像。
+ * 每个小图像应当是原始图像的四个象限之一，顺序为：
+ * - 第 0 个：左上角
+ * - 第 1 个：右上角
+ * - 第 2 个：左下角
+ * - 第 3 个：右下角
+ * @param width 合成后大图像的宽度。
+ * @param height 合成后大图像的高度。
+ * @param yuv420sp_combined 存储合成后大图像数据的向量，函数会将数据写入其中。
+ * 该向量应当预先分配足够的空间，大小至少为 `width * height * 3 / 2` 字节。
+ *
+ * 该函数将四个小的 YUV420sp 图像按照象限合并到一个大图像中。
+ * Y（亮度）和平面和 UV（色度）平面分别处理，使用 `memcpy` 进行高效的数据复制。
+ *
+ * @note 输入的小图像应当是由分割函数得到的，尺寸为 `(width/2) x (height/2)`。
+ *
+ * @warning `yuv420sp_combined` 向量必须预先分配，并且大小至少为 `width * height
+ * * 3 / 2` 字节。
+ */
+void combine_YUV420sp(
+    const std::vector<std::vector<unsigned char>> &v_yuv420sp_4, int width,
+    int height, std::vector<unsigned char> &yuv420sp_combined);
 
 void save_detect_results(const std::vector<std::vector<float>> &decs,
                          const std::string &out_dir, const int imageId,

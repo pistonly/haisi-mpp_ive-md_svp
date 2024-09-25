@@ -76,20 +76,23 @@ FILE(GLOB SVP_COMMON_SRC ./src/svp/common/*.c)
 FILE(GLOB UTILS_SRC ./src/utils.cpp)
 add_executable(md_yolo_rois ./examples/md_yolo_rois.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
 
-add_executable(md_yolo_merged_roi ./examples/md_yolo_merge_rois.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
+add_executable(md_yolo_merge_roi ./examples/md_yolo_merge_rois.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
 
-add_executable(md_yolo_merged_roi_async ./examples/md_yolo_merge_rois_async.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
+add_executable(md_yolo_merge_rois_async ./examples/md_yolo_merge_rois_async.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
 
-add_executable(md_yolo_merged_roi_async_nnn ./examples/md_yolo_merge_rois_async_nnn.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
+add_executable(md_yolo_merge_rois_async_nnn ./examples/md_yolo_merge_rois_async_nnn.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC})
 
-add_executable(md_yolo_merged_roi_async_vdec_vpss ./examples/md_yolo_merge_rois_async_vdec_vpss.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC}
+add_executable(md_yolo_merge_rois_async_vdec_vpss ./examples/md_yolo_merge_rois_async_vdec_vpss.cpp ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC}
   ${UTILS_SRC})
 
 FILE(GLOB YOLOV8_NNN_SRC ./src/yolov8_nnn.cpp)
-add_executable(md_yolo_merged_roi_async_vdec_vpss_nnn ./examples/md_yolo_merge_rois_async_vdec_vpss_nnn.cpp
+add_executable(md_yolo_merge_rois_async_vdec_vpss_nnn ./examples/md_yolo_merge_rois_async_vdec_vpss_nnn.cpp
   ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
 
-add_executable(md_yolo_merged_roi_async_vpss_nnn ./examples/md_yolo_merge_rois_async_vpss_nnn.cpp
+add_executable(md_yolo_merge_rois_async_vpss_nnn_2chns ./examples/md_yolo_merge_rois_async_vpss_nnn_2chns.cpp
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
+add_executable(md4k_yolo_merge_rois_async_vdec_vpss_nnn ./examples/md4k_yolo_merge_rois_async_vdec_vpss_nnn.cpp
   ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
 
 add_executable(test_vpss_get_chn ./test/test_vpss_get_chn.cpp  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
@@ -110,7 +113,7 @@ target_link_libraries(md_yolo_rois
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi
+target_link_libraries(md_yolo_merge_roi
   ive_md
   svp_acl
   ascendcl
@@ -123,7 +126,7 @@ target_link_libraries(md_yolo_merged_roi
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi_async
+target_link_libraries(md_yolo_merge_rois_async
   ive_md
   svp_acl
   ascendcl
@@ -136,7 +139,7 @@ target_link_libraries(md_yolo_merged_roi_async
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi_async_nnn
+target_link_libraries(md_yolo_merge_rois_async_nnn
   ive_md
   svp_acl
   ascendcl
@@ -149,7 +152,7 @@ target_link_libraries(md_yolo_merged_roi_async_nnn
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi_async_vdec_vpss
+target_link_libraries(md_yolo_merge_rois_async_vdec_vpss
   ive_md
   svp_acl
   ascendcl
@@ -168,7 +171,7 @@ target_link_libraries(md_yolo_merged_roi_async_vdec_vpss
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi_async_vdec_vpss_nnn
+target_link_libraries(md_yolo_merge_rois_async_vdec_vpss_nnn
   ive_md
   ascendcl
   pthread
@@ -186,7 +189,7 @@ target_link_libraries(md_yolo_merged_roi_async_vdec_vpss_nnn
   stdc++ # note this line is important
 )
 
-target_link_libraries(md_yolo_merged_roi_async_vpss_nnn
+target_link_libraries(md_yolo_merge_rois_async_vpss_nnn_2chns
   ive_md
   pthread
   ${YOLO_LIB}
@@ -195,6 +198,24 @@ target_link_libraries(md_yolo_merged_roi_async_vpss_nnn
   ${ACL_LIBS}
   ${IVE_LINK_LIBS}
   ascendcl
+  stdc++ # note this line is important
+)
+
+target_link_libraries(md4k_yolo_merge_rois_async_vdec_vpss_nnn
+  ive_md
+  ascendcl
+  pthread
+  ${YOLO_LIB}
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${ACL_LIBS}
+  ${IVE_LINK_LIBS}
+  hardware_decode
+  avformat
+  avcodec
+  avutil
+  swresample
+  swscale
   stdc++ # note this line is important
 )
 

@@ -97,6 +97,129 @@ void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame) {
   }
 
   memcpy(yuv420, frame_data, size);
+  // 解除内存映射
+  ss_mpi_sys_munmap(frame_data, size);
+}
+
+void copy_split_yuv420_from_frame(unsigned char *outputImageDatas[4],
+                                  ot_video_frame_info *frame) {
+  td_u32 height = frame->video_frame.height;
+  td_u32 width = frame->video_frame.width;
+  td_u32 size = height * width * 3 / 2; // 对于YUV420格式，大小为宽*高*1.5
+
+  td_void *frame_data =
+      ss_mpi_sys_mmap_cached(frame->video_frame.phys_addr[0], size);
+  if (frame_data == NULL) {
+    sample_print("mmap failed!\n");
+    /* free(tmp); */
+    return;
+  }
+
+  // Calculate sizes
+  int ySize = width * height;
+  int uvSize = ySize / 2; // Since UV are interleaved in YUV420sp
+
+  int yHalfWidth = width / 2;
+  int yHalfHeight = height / 2;
+  int yHalfSize = yHalfWidth * yHalfHeight;
+
+  int uvHalfWidth = yHalfWidth;
+  int uvHalfHeight =
+      yHalfHeight / 2; // UV plane height is half of Y plane height
+  int uvHalfSize =
+      uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
+
+  // Pointers to the Y and UV planes in the input image
+  const unsigned char *yPlane = reinterpret_cast<const unsigned char*>(frame_data);
+  const unsigned char *uvPlane = yPlane + ySize;
+
+  // Process each quadrant
+  for (int q = 0; q < 4; ++q) {
+    // Calculate starting positions
+    int yStartX = (q % 2) * yHalfWidth;
+    int yStartY = (q / 2) * yHalfHeight;
+    int uvStartX = yStartX;
+    int uvStartY = yStartY / 2; // Because UV height is half of Y height
+
+    // Pointers to the output Y and UV data
+    unsigned char *yOutput = outputImageDatas[q];
+    unsigned char *uvOutput = outputImageDatas[q] + yHalfSize;
+
+    // Copy Y plane data
+    for (int i = 0; i < yHalfHeight; ++i) {
+      std::memcpy(yOutput + i * yHalfWidth,
+                  yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
+    }
+
+    // Copy UV plane data
+    for (int i = 0; i < uvHalfHeight; ++i) {
+      std::memcpy(uvOutput + i * uvHalfWidth,
+                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
+    }
+  }
+  // 解除内存映射
+  ss_mpi_sys_munmap(frame_data, size);
+}
+
+void copy_split_yuv420_from_frame(
+    std::vector<std::vector<unsigned char>> &outputImageDatas,
+    ot_video_frame_info *frame) {
+  td_u32 height = frame->video_frame.height;
+  td_u32 width = frame->video_frame.width;
+  td_u32 size = height * width * 3 / 2; // 对于YUV420格式，大小为宽*高*1.5
+
+  td_void *frame_data =
+      ss_mpi_sys_mmap_cached(frame->video_frame.phys_addr[0], size);
+  if (frame_data == NULL) {
+    sample_print("mmap failed!\n");
+    /* free(tmp); */
+    return;
+  }
+
+  // Calculate sizes
+  int ySize = width * height;
+  int uvSize = ySize / 2; // Since UV are interleaved in YUV420sp
+
+  int yHalfWidth = width / 2;
+  int yHalfHeight = height / 2;
+  int yHalfSize = yHalfWidth * yHalfHeight;
+
+  int uvHalfWidth = yHalfWidth;
+  int uvHalfHeight =
+      yHalfHeight / 2; // UV plane height is half of Y plane height
+  int uvHalfSize =
+      uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
+
+  // Pointers to the Y and UV planes in the input image
+  const unsigned char *yPlane = reinterpret_cast<const unsigned char*>(frame_data);
+  const unsigned char *uvPlane = yPlane + ySize;
+
+  // Process each quadrant
+  for (int q = 0; q < 4; ++q) {
+    // Calculate starting positions
+    int yStartX = (q % 2) * yHalfWidth;
+    int yStartY = (q / 2) * yHalfHeight;
+    int uvStartX = yStartX;
+    int uvStartY = yStartY / 2; // Because UV height is half of Y height
+
+    // Pointers to the output Y and UV data
+    unsigned char *yOutput = outputImageDatas[q].data();
+    unsigned char *uvOutput = outputImageDatas[q].data() + yHalfSize;
+
+    // Copy Y plane data
+    for (int i = 0; i < yHalfHeight; ++i) {
+      std::memcpy(yOutput + i * yHalfWidth,
+                  yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
+    }
+
+    // Copy UV plane data
+    for (int i = 0; i < uvHalfHeight; ++i) {
+      std::memcpy(uvOutput + i * uvHalfWidth,
+                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
+    }
+  }
+  // 解除内存映射
+  ss_mpi_sys_munmap(frame_data, size);
 }
 
 void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
@@ -194,7 +317,7 @@ void save_detect_results(const std::vector<std::vector<float>> &bbox,
                          const std::string &prefix) {
   // concat to decs: x0, y0, x1, y1, conf, cls
   std::vector<std::vector<float>> decs{bbox.size(), std::vector<float>(6, 0.f)};
-  for (auto i=0; i<bbox.size(); ++i) {
+  for (auto i = 0; i < bbox.size(); ++i) {
     decs[i][0] = bbox[i][0];
     decs[i][1] = bbox[i][1];
     decs[i][2] = bbox[i][2];
@@ -220,4 +343,98 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
                 serialized_data.size());
   outFile.close();
   return;
+}
+
+void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
+                   unsigned char *outputImageDatas[4]) {
+  // Calculate sizes
+  int ySize = width * height;
+  int uvSize = ySize / 2; // Since UV are interleaved in YUV420sp
+
+  int yHalfWidth = width / 2;
+  int yHalfHeight = height / 2;
+  int yHalfSize = yHalfWidth * yHalfHeight;
+
+  int uvHalfWidth = yHalfWidth;
+  int uvHalfHeight =
+      yHalfHeight / 2; // UV plane height is half of Y plane height
+  int uvHalfSize =
+      uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
+
+  // Pointers to the Y and UV planes in the input image
+  const unsigned char *yPlane = inputImageData;
+  const unsigned char *uvPlane = inputImageData + ySize;
+
+  // Process each quadrant
+  for (int q = 0; q < 4; ++q) {
+    // Calculate starting positions
+    int yStartX = (q % 2) * yHalfWidth;
+    int yStartY = (q / 2) * yHalfHeight;
+    int uvStartX = yStartX;
+    int uvStartY = yStartY / 2; // Because UV height is half of Y height
+
+    // Pointers to the output Y and UV data
+    unsigned char *yOutput = outputImageDatas[q];
+    unsigned char *uvOutput = outputImageDatas[q] + yHalfSize;
+
+    // Copy Y plane data
+    for (int i = 0; i < yHalfHeight; ++i) {
+      std::memcpy(yOutput + i * yHalfWidth,
+                  yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
+    }
+
+    // Copy UV plane data
+    for (int i = 0; i < uvHalfHeight; ++i) {
+      std::memcpy(uvOutput + i * uvHalfWidth,
+                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
+    }
+  }
+}
+
+
+void combine_YUV420sp(
+    const std::vector<std::vector<unsigned char>> &v_yuv420sp_4, int width,
+    int height, std::vector<unsigned char> &yuv420sp_combined) {
+  // Calculate sizes
+  int ySize = width * height;
+  int uvSize = ySize / 2; // Since UV are interleaved in YUV420sp
+
+  int yHalfWidth = width / 2;
+  int yHalfHeight = height / 2;
+  int yHalfSize = yHalfWidth * yHalfHeight;
+
+  int uvHalfWidth = yHalfWidth;
+  int uvHalfHeight =
+      yHalfHeight / 2; // UV plane height is half of Y plane height
+  int uvHalfSize =
+      uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
+
+  // Pointers to the Y and UV planes in the target image
+  unsigned char *yPlane = yuv420sp_combined.data();
+  unsigned char *uvPlane = yPlane + ySize;
+
+  // Process each quadrant
+  for (int q = 0; q < 4; ++q) {
+    // Calculate starting positions
+    int yStartX = (q % 2) * yHalfWidth;
+    int yStartY = (q / 2) * yHalfHeight;
+    int uvStartX = yStartX;
+    int uvStartY = yStartY / 2; // Because UV height is half of Y height
+
+    // Pointers to the output Y and UV data
+    const unsigned char *ySrc = v_yuv420sp_4[q].data();
+    const unsigned char *uvSrc = v_yuv420sp_4[q].data() + yHalfSize;
+
+    // Copy Y plane data
+    for (int i = 0; i < yHalfHeight; ++i) {
+      std::memcpy(yPlane + (yStartY + i) * width + yStartX,
+                  ySrc + i * yHalfWidth, yHalfWidth);
+    }
+
+    // Copy UV plane data
+    for (int i = 0; i < uvHalfHeight; ++i) {
+      std::memcpy(uvPlane + (uvStartY + i) * width + uvStartX,
+                  uvSrc + i * uvHalfWidth, uvHalfWidth);
+    }
+  }
 }

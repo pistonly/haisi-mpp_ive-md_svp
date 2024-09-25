@@ -3,10 +3,11 @@ import numpy as np
 from pathlib import Path
 import struct
 import time
+import glob
 
 url = "rtsp://172.23.24.52:8554/test"
 # tcp_data_dir = Path("/home/liuyang/Documents/haisi/ai-sd3403/ai-sd3403/test/test_tcp/x86/build/")
-tcp_data_dir = Path("/home/liuyang/Documents/tmp/md/")
+tcp_data_dir = Path("/home/liuyang/Documents/tmp/md-4k/")
 
 
 def deserialize(buffer):
@@ -41,14 +42,15 @@ def get_decs(dec_file):
 
 def draw_rec(image, decs):
     for x, y, h, w, conf, cls in decs:
-        if conf < 0.1:
+        if conf < 0.2:
             continue
         if int(h) == 0:
+            # print(x, y, h, w, conf, cls)
             x0 = int(x)
             y0 = int(y)
             x1 = int(x + 32)
             y1 = int(y + 32)
-            continue
+            cv2.rectangle(image, (x0, y0), (x1, y1), (0, 0, 255), 2)
         else:
             print(x, y, h, w, conf, cls)
             x0 = int(x - w // 2)
@@ -56,7 +58,7 @@ def draw_rec(image, decs):
             x1 = int(x + w // 2)
             y1 = int(y + h // 2)
 
-        cv2.rectangle(image, (x0, y0), (x1, y1), (255, 255, 255), 2)
+            cv2.rectangle(image, (x0, y0), (x1, y1), (255, 255, 255), 2)
     return image
 
 cap = cv2.VideoCapture(url)
@@ -75,7 +77,11 @@ while True:
         print("Cannot receive frame (stream end?). Exiting ...")
         break
 
-    decs = get_decs(str(tcp_data_dir / f"decs_image_{img_id:06d}.bin"))
+    glob_res = glob.glob(str(tcp_data_dir / f"decs_image_{img_id:06d}*.bin"))
+    decs = []
+    if len(glob_res):
+        decs = get_decs(str(tcp_data_dir / glob_res[0]))
+
     frame = draw_rec(frame, decs)
 
     img_id += 1
