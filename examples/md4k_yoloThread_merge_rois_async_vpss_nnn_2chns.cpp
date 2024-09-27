@@ -35,6 +35,44 @@ extern Logger logger;
 
 std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
+// 提取通用的错误处理函数
+bool handle_error(const char *action, int vpss_grp, int vpss_chn, int ret) {
+  if (ret != TD_SUCCESS) {
+    logger.log(ERROR, action, " error, grp: ", vpss_grp, " chn: ", vpss_chn,
+               " Err code: ", ret);
+    return false;
+  }
+  return true;
+}
+
+// 获取或释放帧数据
+bool process_frames(std::vector<ot_video_frame_info> &v_frames,
+                    bool release = false) {
+  std::vector<std::pair<td_s32, td_s32>> grp_chns{
+      {0, 0}, {0, 1}, {2, 2}, {2, 3}};
+
+  if (grp_chns.size() > v_frames.size()) {
+    logger.log(ERROR, "Frame number should not be less than grp_chn pairs");
+    return false;
+  }
+
+  for (size_t i = 0; i < grp_chns.size(); ++i) {
+    td_s32 &vpss_grp = grp_chns[i].first;
+    td_s32 &vpss_chn = grp_chns[i].second;
+
+    if (release) {
+      int ret = ss_mpi_vpss_release_chn_frame(vpss_grp, vpss_chn, &v_frames[i]);
+      if (!handle_error("Release vpss chn", vpss_grp, vpss_chn, ret))
+        return false;
+    } else {
+      int ret =
+          ss_mpi_vpss_get_chn_frame(vpss_grp, vpss_chn, &v_frames[i], 100);
+      if (!handle_error("Get vpss chn", vpss_grp, vpss_chn, ret))
+        return false;
+    }
+  }
+  return true;
+}
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
 void processInThread(
@@ -112,7 +150,8 @@ int main(int argc, char *argv[]) {
       4, std::vector<unsigned char>(merged_size));
   std::vector<unsigned char> merged_roi_combined(merged_size * 4, 0);
 
-  std::vector<ot_ive_ccblob> blob4(4, {0});
+  std::vector<ot_ive_ccblob> blob4_camera0(4, {0});
+  std::vector<ot_ive_ccblob> blob4_camera1(4, {0});
 
   char absolute_path[PATH_MAX];
 
@@ -120,11 +159,9 @@ int main(int argc, char *argv[]) {
 
   // initialize md
   // NOTE: md should initialized before SVPNNN
-  std::vector<IVE_MD> v_md4(4);
-
-  // initialize ffmpeg_vdec_vpss
-  HardwareDecoder decoder(rtsp_url, decode_step_mode);
-  decoder.start_decode();
+  bool b_sys_init = false;
+  std::vector<IVE_MD> v_md4_camera0(4, IVE_MD(b_sys_init));
+  std::vector<IVE_MD> v_md4_camera1(4, IVE_MD(b_sys_init));
 
   // 初始化NPU
   YOLOV8Sync_combine yolov8(omPath, output_dir);
@@ -145,12 +182,17 @@ int main(int argc, char *argv[]) {
   int frame_id = 0;
 
   // Pre-allocate buffers
-  std::vector<std::vector<unsigned char>> img4(
+  std::vector<std::vector<unsigned char>> img4_camera0(
+      4, std::vector<unsigned char>(IMAGE_SIZE));
+  std::vector<std::vector<unsigned char>> img4_camera1(
       4, std::vector<unsigned char>(IMAGE_SIZE));
 
   auto start_time = std::chrono::high_resolution_clock::now();
   std::vector<std::vector<std::pair<int, int>>> vv_top_lefts4(4);
-  while (running && !decoder.is_ffmpeg_exit()) {
+  std::vector<ot_video_frame_info> v_frame_chns(4);
+  bool b_yolo_on_camera0 = true;
+
+  while (running) {
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
       auto duration =
@@ -162,31 +204,52 @@ int main(int argc, char *argv[]) {
 
     {
       Timer timer("Get Frames");
-      if (decoder.get_frame_without_release()) {
-        copy_split_yuv420_from_frame(img4, &decoder.frame_H);
-      } else {
+      if (!process_frames(v_frame_chns))
         break;
-      }
+      copy_split_yuv420_from_frame(img4_camera0, &v_frame_chns[0]);
+      copy_split_yuv420_from_frame(img4_camera1, &v_frame_chns[3]);
     }
 
+    // MD
     {
-      Timer timer("md");
-      for (int i = 0; i < 4; ++i) {
-        v_md4[i].process(img4[i].data(), &blob4[i]);
-        logger.log(DEBUG, "instance number: ",
-                   static_cast<int>(blob4[i].info.bits.rgn_num));
+      Timer timer("md processing ...");
+      {
+        Timer timer("md camera0 ...");
+        for (int i = 0; i < 4; ++i) {
+          v_md4_camera0[i].process(img4_camera0[i].data(), &blob4_camera0[i]);
+          logger.log(DEBUG, "camera-0 instance number: ",
+                     static_cast<int>(blob4_camera0[i].info.bits.rgn_num));
+        }
       }
-
-      decoder.release_frames();
+      {
+        Timer timer("md camera1 ...");
+        for (int i = 0; i < 4; ++i) {
+          v_md4_camera1[i].process(img4_camera1[i].data(), &blob4_camera1[i]);
+          logger.log(DEBUG, "camera-1 instance number: ",
+                     static_cast<int>(blob4_camera1[i].info.bits.rgn_num));
+        }
+      }
     }
 
     // 合并ROI
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
+
+      std::vector<std::vector<unsigned char>> *p_img4;
+      std::vector<ot_ive_ccblob> *p_blob4;
+
+      if (b_yolo_on_camera0) {
+        p_img4 = &img4_camera0;
+        p_blob4 = &blob4_camera0;
+      } else {
+        p_img4 = &img4_camera1;
+        p_blob4 = &blob4_camera1;
+      }
+
       for (int i = 0; i < 4; ++i) {
         std::vector<std::pair<int, int>> top_lefts_i;
-        merge_rois(img4[i].data(), &blob4[i], v_merged_roi4[i], top_lefts_i,
-                   4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
+        merge_rois((*p_img4)[i].data(), &((*p_blob4)[i]), v_merged_roi4[i],
+                   top_lefts_i, 4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
         for (auto &tl : top_lefts_i) {
@@ -207,13 +270,22 @@ int main(int argc, char *argv[]) {
     if (yolov8.mb_yolo_ready) {
       Timer timer("yolov8");
       uint8_t cameraId = 0;
-      uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
+      uint64_t timestamp = 0;
+      if (b_yolo_on_camera0) {
+        cameraId = 0;
+        timestamp = v_frame_chns[1].video_frame.pts / 1000; // ms
+      } else {
+        cameraId = 1;
+        timestamp = v_frame_chns[3].video_frame.pts / 1000; // ms
+      }
       // 创建新线程
-      std::thread asyncTask(processInThread, cameraId,
-                            std::ref(merged_roi_combined),
-                            std::ref(vv_top_lefts4), std::ref(yolov8), frame_id,
-                            timestamp);
+      std::thread asyncTask(
+          processInThread, cameraId, std::ref(merged_roi_combined),
+          std::ref(vv_top_lefts4), std::ref(yolov8), frame_id, timestamp);
       asyncTask.detach();
+
+      // switch yolo camera
+      b_yolo_on_camera0 = !b_yolo_on_camera0;
     }
 
     frame_id++;
