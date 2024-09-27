@@ -6,6 +6,7 @@
 #include "ss_mpi_sys.h"
 #include "ss_mpi_vpss.h"
 #include <arpa/inet.h>
+#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -16,6 +17,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
+#include <cassert>
 
 // 全局日志器实例，初始日志级别为 INFO
 Logger logger(INFO);
@@ -38,6 +40,35 @@ std::vector<char> serialize(const std::vector<std::vector<float>> &data) {
   return buffer;
 }
 
+std::vector<char>
+serialize_detect_data(const std::vector<std::vector<float>> &decs,
+                      const uint8_t cameraId, const uint64_t timestamp) {
+  std::vector<char> buffer;
+  // total size
+  unsigned int len = 13 + 24 * decs.size();
+  buffer.insert(buffer.end(), reinterpret_cast<const char *>(&len),
+                reinterpret_cast<const char *>(&len) + sizeof(len));
+  // cameraId
+  buffer.insert(buffer.end(), reinterpret_cast<const char *>(&cameraId),
+                reinterpret_cast<const char *>(&cameraId) + sizeof(cameraId));
+
+  // time stamp
+  buffer.insert(buffer.end(), reinterpret_cast<const char *>(&timestamp),
+                reinterpret_cast<const char *>(&timestamp) + sizeof(timestamp));
+
+  // bboxes
+  for (auto &dec : decs) {
+    assert(dec.size() == 6);
+    for (float value : dec) {
+      buffer.insert(buffer.end(), reinterpret_cast<const char *>(&value),
+                    reinterpret_cast<const char *>(&value) + sizeof(value));
+    }
+  }
+
+  assert(sizeof(len) + sizeof(cameraId) + sizeof(timestamp) == 13);
+  return buffer;
+}
+
 // 发送文件名和数据
 void send_file_and_data(int sock, const std::string &filename,
                         const std::vector<std::vector<float>> &data) {
@@ -56,6 +87,14 @@ void send_file_and_data(int sock, const std::string &filename,
   send(sock, &data_len, sizeof(data_len), 0);
 
   // 发送数据
+  send(sock, serialized_data.data(), serialized_data.size(), 0);
+}
+
+void send_dection_results(int sock, const std::vector<std::vector<float>> &decs,
+                          uint8_t cameraId, uint64_t timestamp) {
+  // serialize data
+  std::vector<char> serialized_data =
+      serialize_detect_data(decs, cameraId, timestamp);
   send(sock, serialized_data.data(), serialized_data.size(), 0);
 }
 
@@ -130,7 +169,8 @@ void copy_split_yuv420_from_frame(unsigned char *outputImageDatas[4],
       uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
 
   // Pointers to the Y and UV planes in the input image
-  const unsigned char *yPlane = reinterpret_cast<const unsigned char*>(frame_data);
+  const unsigned char *yPlane =
+      reinterpret_cast<const unsigned char *>(frame_data);
   const unsigned char *uvPlane = yPlane + ySize;
 
   // Process each quadrant
@@ -191,7 +231,8 @@ void copy_split_yuv420_from_frame(
       uvHalfWidth * uvHalfHeight * 2; // *2 because UV are interleaved
 
   // Pointers to the Y and UV planes in the input image
-  const unsigned char *yPlane = reinterpret_cast<const unsigned char*>(frame_data);
+  const unsigned char *yPlane =
+      reinterpret_cast<const unsigned char *>(frame_data);
   const unsigned char *uvPlane = yPlane + ySize;
 
   // Process each quadrant
@@ -227,6 +268,7 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
                 std::vector<std::pair<int, int>> &top_lefts, float scale_x,
                 float scale_y, int imgH, int imgW, int merged_roi_H,
                 int merged_roi_W) {
+  top_lefts.clear();
   // img and merged_rois are YUV format images.
   const int roi_size = 32;
   const int roi_size_half = roi_size / 2;
@@ -345,6 +387,24 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
   return;
 }
 
+void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const uint8_t cameraId, const uint64_t timestamp,
+                         const std::string &out_dir,
+                         const std::string &filename) {
+  std::ofstream outFile(out_dir + filename, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << filename << " for writing."
+              << std::endl;
+    return;
+  }
+
+  std::vector<char> serialized_data = serialize_detect_data(decs, cameraId, timestamp);
+  outFile.write(reinterpret_cast<const char *>(serialized_data.data()),
+                serialized_data.size());
+  outFile.close();
+  return;
+}
+
 void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
                    unsigned char *outputImageDatas[4]) {
   // Calculate sizes
@@ -390,7 +450,6 @@ void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
     }
   }
 }
-
 
 void combine_YUV420sp(
     const std::vector<std::vector<unsigned char>> &v_yuv420sp_4, int width,

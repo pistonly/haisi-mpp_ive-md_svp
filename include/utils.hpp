@@ -76,6 +76,9 @@ std::vector<char> serialize(const std::vector<std::vector<float>> &data);
 void send_file_and_data(int sock, const std::string &filename,
                         const std::vector<std::vector<float>> &data);
 
+void send_dection_results(int sock, const std::vector<std::vector<float>> &decs,
+                          uint8_t cameraId, uint64_t timestamp);
+
 /**
  * @brief merge rois to big Canvas.
  * @details Description
@@ -197,6 +200,11 @@ void save_detect_results(const std::vector<std::vector<float>> &bbox,
                          const std::string &prefix = "");
 
 void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const std::string &out_dir,
+                         const std::string &filename);
+
+void save_detect_results(const std::vector<std::vector<float>> &decs,
+                         const uint8_t cameraId, const uint64_t timestamp,
                          const std::string &out_dir,
                          const std::string &filename);
 

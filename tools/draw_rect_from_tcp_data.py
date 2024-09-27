@@ -29,11 +29,24 @@ def deserialize(buffer):
     
     return data
 
+def deserialize_v2(buffer):
+    dec = []
+    len = struct.unpack_from("I", buffer, 0)[0]
+    cameraId = struct.unpack_from("B", buffer, 4)[0]
+    timestamp = struct.unpack_from("Q", buffer, 5)[0]
+    if len > 13:
+        dec_num = (len - 13) // 24
+        dec = np.ndarray((dec_num, 6), dtype=np.float32, buffer=buffer[13:])
+    print(len, cameraId, timestamp, dec)
+    return dec
+
+
 def get_decs(dec_file):
     if (Path(dec_file).is_file()):
         with open(dec_file, "rb") as f:
             data_buffer = f.read()
-            data = deserialize(data_buffer)
+            # data = deserialize(data_buffer)
+            data = deserialize_v2(data_buffer)
             # print(data)
             return data
     else:
@@ -77,7 +90,7 @@ while True:
         print("Cannot receive frame (stream end?). Exiting ...")
         break
 
-    glob_res = glob.glob(str(tcp_data_dir / f"decs_image_{img_id:06d}*.bin"))
+    glob_res = glob.glob(str(tcp_data_dir / f"decs_camera-0_image-{img_id:06d}*.bin"))
     decs = []
     if len(glob_res):
         decs = get_decs(str(tcp_data_dir / glob_res[0]))
