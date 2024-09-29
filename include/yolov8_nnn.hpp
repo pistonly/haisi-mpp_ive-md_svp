@@ -33,6 +33,8 @@ public:
   int m_sock;
   bool mb_sock_connected = false;
   bool mb_save_results = false;
+  bool mb_save_csv = false;
+  uint8_t m_current_ch = 0;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;
@@ -44,10 +46,7 @@ public:
   void connect_to_tcp(const std::string &ip, const int port);
 
   void CallbackFunc(void *data) override;
-  void update_imageId(int id, uint64_t timestamp) {
-    m_imageId = id;
-    m_timestamp = timestamp;
-  }
+  void update_imageId(int id, uint64_t time_stamp, int ch=0);
 };
 
 class YOLOV8_nnn_2chns : public NNNYOLOV8_CALLBACK {
@@ -62,7 +61,7 @@ public:
   std::vector<std::vector<char>> m_outputs;
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId;
-  uint64_t m_timestamp;
+  uint64_t m_timestamp=0;
   int m_input_h, m_input_w;
   float m_conf_thres = default_conf_thres;
   float m_iou_thres = default_iou_thres;
@@ -70,6 +69,7 @@ public:
   int m_sock;
   bool mb_sock_connected = false;
   bool mb_save_results = false;
+  bool mb_save_csv = false;
   uint8_t m_current_ch = 0;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
@@ -109,6 +109,7 @@ public:
   int m_sock;
   bool mb_sock_connected = false;
   bool mb_save_results = false;
+  bool mb_save_csv = false;
   bool mb_yolo_ready = true;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
@@ -139,6 +140,7 @@ public:
   int m_sock;
   bool mb_sock_connected = false;
   bool mb_save_results = false;
+  bool mb_save_csv = false;
   bool mb_yolo_ready = true;
 
   std::vector<std::vector<size_t>> mv_outputs_dim;

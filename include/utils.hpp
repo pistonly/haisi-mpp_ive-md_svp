@@ -208,6 +208,9 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
                          const std::string &out_dir,
                          const std::string &filename);
 
+void save_detect_results_csv(const std::vector<std::vector<float>> &decs,
+                             const std::string &out_dir,
+                             const std::string &filename);
 // 在编译时定义 ENABLE_TIMER 即可启用 Timer 功能
 // 可以在编译时通过 -DENABLE_TIMER 来打开
 

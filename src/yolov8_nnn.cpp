@@ -45,6 +45,16 @@ YOLOV8_new::YOLOV8_new(const std::string &modelPath,
   }
 }
 
+void YOLOV8_new::update_imageId(int id, uint64_t time_stamp, int ch) {
+  if (ch == 0) {
+    m_current_ch = 0;
+  } else if (ch == 1) {
+    m_current_ch = 1;
+  }
+  m_imageId = id;
+  m_timestamp = time_stamp;
+}
+
 void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
   m_sock = 0;
   struct sockaddr_in serv_addr;
@@ -152,6 +162,12 @@ void YOLOV8_new::CallbackFunc(void *data) {
     if (mb_save_results) {
       save_detect_results(real_decs, cameraId, m_timestamp, m_output_dir,
                           ss.str());
+    }
+    if (mb_save_csv) {
+      std::stringstream ss;
+      ss << "decs_image_" << std::setw(6) << std::setfill('0') << m_imageId
+         << "_" << m_timestamp << ".csv";
+      save_detect_results_csv(real_decs, m_output_dir, ss.str());
     }
   }
   auto postp_end = std::chrono::high_resolution_clock::now();
@@ -333,6 +349,12 @@ void YOLOV8_nnn_2chns::CallbackFunc(void *data) {
       save_detect_results(real_decs, m_current_ch, m_timestamp, m_output_dir,
                           ss.str());
     }
+    if (mb_save_csv) {
+      std::stringstream ss;
+      ss << "decs_image_ch-" << m_current_ch << "_" << std::setw(6)
+         << std::setfill('0') << m_imageId << "_" << m_timestamp << ".csv";
+      save_detect_results_csv(real_decs, m_output_dir, ss.str());
+    }
   }
   auto postp_end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -512,6 +534,13 @@ void YOLOV8_combine::CallbackFunc(void *data) {
     save_detect_results(real_decs, cameraId, m_timestamp, m_output_dir,
                         ss.str());
   }
+  if (mb_save_csv) {
+    std::stringstream ss;
+    ss << "decs_camera-" << cameraId << "_image-" << std::setw(6)
+       << std::setfill('0') << m_imageId << "_" << m_timestamp << ".csv";
+    save_detect_results_csv(real_decs, m_output_dir, ss.str());
+  }
+
   auto postp_end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       postp_end - postp_start);
@@ -694,13 +723,21 @@ bool YOLOV8Sync_combine::process_one_image(
     }
   }
   std::stringstream ss;
-  ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-" << std::setw(6)
-     << std::setfill('0') << imageId << "_" << timestamp << ".bin";
+  ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
+     << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp
+     << ".bin";
   if (mb_sock_connected) {
     send_dection_results(m_sock, real_decs, cameraId, timestamp);
   }
   if (mb_save_results) {
     save_detect_results(real_decs, cameraId, timestamp, m_output_dir, ss.str());
+  }
+  if (mb_save_csv) {
+    std::stringstream ss;
+    ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
+       << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp
+       << ".csv";
+    save_detect_results_csv(real_decs, m_output_dir, ss.str());
   }
 
   mb_yolo_ready = true;

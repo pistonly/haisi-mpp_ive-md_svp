@@ -405,6 +405,27 @@ void save_detect_results(const std::vector<std::vector<float>> &decs,
   return;
 }
 
+void save_detect_results_csv(const std::vector<std::vector<float>> &decs,
+                         const std::string &out_dir,
+                         const std::string &filename) {
+  std::ofstream outFile(out_dir + filename, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << filename << " for writing."
+              << std::endl;
+    return;
+  }
+
+  for (auto &dec:decs){
+    int i = 0;
+    for (; i< dec.size() - 1; ++i){
+      outFile << dec[i] << ", ";
+    }
+    outFile << dec[i] << std::endl;
+  }
+  outFile.close();
+  return;
+}
+
 void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
                    unsigned char *outputImageDatas[4]) {
   // Calculate sizes
