@@ -1,6 +1,7 @@
 #include "yolov8_nnn.hpp"
 #include "utils.hpp"
 #include <cassert>
+#include <cstdint>
 #include <iomanip>
 #include <netinet/in.h>
 #include <sstream>
@@ -9,6 +10,26 @@
 #include <vector>
 
 extern Logger logger;
+
+void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
+                       int sock,
+                       const std::vector<std::vector<float>> &real_decs,
+                       uint8_t cameraId, int imageId, uint64_t timestamp,
+                       const std::string &output_dir) {
+  std::stringstream ss;
+  ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
+     << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp;
+  if (sock_connected) {
+    send_dection_results(sock, real_decs, cameraId, timestamp);
+  }
+  if (save_bin) {
+    save_detect_results(real_decs, cameraId, timestamp, output_dir,
+                        ss.str() + ".bin");
+  }
+  if (save_csv) {
+    save_detect_results_csv(real_decs, output_dir, ss.str() + ".csv");
+  }
+}
 
 YOLOV8_new::YOLOV8_new(const std::string &modelPath,
                        const std::string &output_dir,
@@ -45,154 +66,97 @@ YOLOV8_new::YOLOV8_new(const std::string &modelPath,
   }
 }
 
-void YOLOV8_new::update_imageId(int id, uint64_t time_stamp, int ch) {
-  if (ch == 0) {
-    m_current_ch = 0;
-  } else if (ch == 1) {
-    m_current_ch = 1;
-  }
-  m_imageId = id;
+void YOLOV8_new::update_imageId(int imageId, uint64_t time_stamp,
+                                int cameraId) {
+  m_cameraId = static_cast<uint8_t>(cameraId);
+  m_imageId = imageId;
   m_timestamp = time_stamp;
-}
-
-void YOLOV8_new::connect_to_tcp(const std::string &ip, const int port) {
-  m_sock = 0;
-  struct sockaddr_in serv_addr;
-
-  if ((m_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logger.log(ERROR, "Socket creation failed.");
-    return;
-  }
-
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(port);
-
-  if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-    logger.log(ERROR, "Invalid address / Address not supported.");
-    return;
-  }
-
-  if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    logger.log(ERROR, "Connection Failed.");
-    return;
-  }
-
-  mb_sock_connected = true;
-  logger.log(INFO, "Connected to TCP server at ", ip, ":", port);
-  return;
 }
 
 void YOLOV8_new::CallbackFunc(void *data) {
   logger.log(DEBUG, "callback from yolov8_new");
-  auto d2h_start = std::chrono::high_resolution_clock::now();
   std::vector<const char *> vp_outputs;
-  Result ret = Device2Host(vp_outputs);
-  if (ret != SUCCESS) {
-    logger.log(ERROR, "Device2Host error");
-    return;
+  {
+    Timer timer("D2H ...");
+    Result ret = Device2Host(vp_outputs);
+    if (ret != SUCCESS) {
+      logger.log(ERROR, "Device2Host error");
+      return;
+    }
   }
+
   // post process
-  auto postp_start = std::chrono::high_resolution_clock::now();
+  {
+    Timer timer("postprocess...");
+    split_bbox_conf_reduced(vp_outputs, mv_outputs_dim, mvp_bbox, mvp_conf,
+                            mvp_cls);
 
-  split_bbox_conf_reduced(vp_outputs, mv_outputs_dim, mvp_bbox, mvp_conf,
-                          mvp_cls);
+    const int batch_num = mvp_bbox.size();
+    std::vector<std::vector<std::vector<half>>> det_bbox(batch_num);
+    std::vector<std::vector<half>> det_conf(batch_num);
+    std::vector<std::vector<half>> det_cls(batch_num);
 
-  const int batch_num = mvp_bbox.size();
-  std::vector<std::vector<std::vector<half>>> det_bbox(batch_num);
-  std::vector<std::vector<half>> det_conf(batch_num);
-  std::vector<std::vector<half>> det_cls(batch_num);
+    const int roi_hw = 32;
+    for (int i = 0; i < batch_num; ++i) {
+      const int box_num = mv_outputs_dim[0][2];
+      const std::vector<const half *> &bbox_batch_i = mvp_bbox[i];
+      const std::vector<const half *> &conf_batch_i = mvp_conf[i];
+      const std::vector<const half *> &cls_batch_i = mvp_cls[i];
+      NMS_bboxTranspose(box_num, bbox_batch_i, conf_batch_i, cls_batch_i,
+                        det_bbox[i], det_conf[i], det_cls[i], m_conf_thres,
+                        m_iou_thres, m_max_det);
 
-  const int roi_hw = 32;
-  for (int i = 0; i < batch_num; ++i) {
-    const int box_num = mv_outputs_dim[0][2];
-    const std::vector<const half *> &bbox_batch_i = mvp_bbox[i];
-    const std::vector<const half *> &conf_batch_i = mvp_conf[i];
-    const std::vector<const half *> &cls_batch_i = mvp_cls[i];
-    NMS_bboxTranspose(box_num, bbox_batch_i, conf_batch_i, cls_batch_i,
-                      det_bbox[i], det_conf[i], det_cls[i], m_conf_thres,
-                      m_iou_thres, m_max_det);
-
-    // filter detection. each DEC assign to one 32x32 patch.
-    const int grid_num_x = m_input_w / roi_hw;
-    const int grid_num_y = m_input_h / roi_hw;
-    float c_x, c_y, w, h, conf;
-    int grid_x, grid_y;
-    std::array<std::array<float, 6>, 400> filted_decs = {0};
-    for (auto j = 0; j < det_bbox[i].size(); ++j) {
-      const std::vector<half> &box = det_bbox[i][j];
-      c_x = 0.5f * (box[0] + box[2]);
-      c_y = 0.5f * (box[1] + box[3]);
-      conf = det_conf[i][j];
-      grid_x = static_cast<int>(c_x / roi_hw);
-      grid_y = static_cast<int>(c_y / roi_hw);
-      const int filted_id = grid_y * grid_num_x + grid_x;
-      const float &current_best_conf = filted_decs[filted_id][4];
-      if (filted_id < 100 && conf > current_best_conf) {
-        float w = box[2] - box[0];
-        float h = box[3] - box[1];
-        filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
+      // filter detection. each DEC assign to one 32x32 patch.
+      const int grid_num_x = m_input_w / roi_hw;
+      const int grid_num_y = m_input_h / roi_hw;
+      float c_x, c_y, w, h, conf;
+      int grid_x, grid_y;
+      std::array<std::array<float, 6>, 400> filted_decs = {0};
+      for (auto j = 0; j < det_bbox[i].size(); ++j) {
+        const std::vector<half> &box = det_bbox[i][j];
+        c_x = 0.5f * (box[0] + box[2]);
+        c_y = 0.5f * (box[1] + box[3]);
+        conf = det_conf[i][j];
+        grid_x = static_cast<int>(c_x / roi_hw);
+        grid_y = static_cast<int>(c_y / roi_hw);
+        const int filted_id = grid_y * grid_num_x + grid_x;
+        const float &current_best_conf = filted_decs[filted_id][4];
+        if (filted_id < 100 && conf > current_best_conf) {
+          float w = box[2] - box[0];
+          float h = box[3] - box[1];
+          filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
+        }
       }
-    }
-    // change to real location
-    std::vector<std::vector<float>> real_decs;
-    const int instance_num = m_toplefts.size();
+      // change to real location
+      std::vector<std::vector<float>> real_decs;
+      const int instance_num = m_toplefts.size();
 
-    for (int k = 0; k < instance_num; ++k) {
-      const auto &tl = m_toplefts[k];
-      const auto &dec = filted_decs[k];
-      grid_x = k % grid_num_x;
-      grid_y = k / grid_num_x;
-      if (dec[4] > 0) {
-        c_x = dec[0] - roi_hw * grid_x + tl.first;
-        c_y = dec[1] - roi_hw * grid_y + tl.second;
-      } else {
-        c_x = static_cast<float>(tl.first);
-        c_y = static_cast<float>(tl.second);
+      for (int k = 0; k < instance_num; ++k) {
+        const auto &tl = m_toplefts[k];
+        const auto &dec = filted_decs[k];
+        grid_x = k % grid_num_x;
+        grid_y = k / grid_num_x;
+        if (dec[4] > 0) {
+          c_x = dec[0] - roi_hw * grid_x + tl.first;
+          c_y = dec[1] - roi_hw * grid_y + tl.second;
+        } else {
+          c_x = static_cast<float>(tl.first);
+          c_y = static_cast<float>(tl.second);
+        }
+        real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
       }
-      real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
-    }
 
-    std::stringstream ss;
-    ss << "decs_image_" << std::setw(6) << std::setfill('0') << m_imageId << "_"
-       << m_timestamp << ".bin";
-    uint8_t cameraId = 0;
-    if (mb_sock_connected) {
-      send_dection_results(m_sock, real_decs, cameraId, m_timestamp);
-    }
-    if (mb_save_results) {
-      save_detect_results(real_decs, cameraId, m_timestamp, m_output_dir,
-                          ss.str());
-    }
-    if (mb_save_csv) {
-      std::stringstream ss;
-      ss << "decs_image_" << std::setw(6) << std::setfill('0') << m_imageId
-         << "_" << m_timestamp << ".csv";
-      save_detect_results_csv(real_decs, m_output_dir, ss.str());
+      send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                        real_decs, m_cameraId, m_imageId, m_timestamp,
+                        m_output_dir);
     }
   }
-  auto postp_end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      postp_end - postp_start);
-  auto d2h_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-      postp_start - d2h_start);
-
-  logger.log(DEBUG, "Post-processing cost: ", duration.count(),
-             "ms, D2H cost: ", d2h_cost.count(), "ms");
 }
-
-YOLOV8_new::~YOLOV8_new() {
-  if (mb_sock_connected) {
-    close(m_sock);
-    mb_sock_connected = false;
-    logger.log(INFO, "Disconnected from TCP server.");
-  }
-}
-
 
 YOLOV8_combine::YOLOV8_combine(const std::string &modelPath,
                                const std::string &output_dir,
                                const std::string &aclJSON)
-    : NNNYOLOV8_CALLBACK(modelPath, aclJSON), m_imageId(0) {
+    : NNNYOLOV8_CALLBACK(modelPath, aclJSON), m_imageId(0), m_cameraId(0) {
 
   char c_output_dir[PATH_MAX];
   if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
@@ -224,160 +188,106 @@ YOLOV8_combine::YOLOV8_combine(const std::string &modelPath,
   }
 }
 
-void YOLOV8_combine::connect_to_tcp(const std::string &ip, const int port) {
-  m_sock = 0;
-  struct sockaddr_in serv_addr;
-
-  if ((m_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logger.log(ERROR, "Socket creation failed.");
-    return;
-  }
-
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(port);
-
-  if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-    logger.log(ERROR, "Invalid address / Address not supported.");
-    return;
-  }
-
-  if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    logger.log(ERROR, "Connection Failed.");
-    return;
-  }
-
-  mb_sock_connected = true;
-  logger.log(INFO, "Connected to TCP server at ", ip, ":", port);
-  return;
-}
-
 void YOLOV8_combine::CallbackFunc(void *data) {
   logger.log(DEBUG, "callback from yolov8_new");
-  auto d2h_start = std::chrono::high_resolution_clock::now();
   std::vector<const char *> vp_outputs;
-  Result ret = Device2Host(vp_outputs);
-  if (ret != SUCCESS) {
-    logger.log(ERROR, "Device2Host error");
-    return;
+  {
+    Timer timer("D2H...");
+    Result ret = Device2Host(vp_outputs);
+    if (ret != SUCCESS) {
+      logger.log(ERROR, "Device2Host error");
+      return;
+    }
   }
+
   // post process
-  auto postp_start = std::chrono::high_resolution_clock::now();
+  {
+    Timer timer("post process ...");
 
-  split_bbox_conf_reduced(vp_outputs, mv_outputs_dim, mvp_bbox, mvp_conf,
-                          mvp_cls);
+    split_bbox_conf_reduced(vp_outputs, mv_outputs_dim, mvp_bbox, mvp_conf,
+                            mvp_cls);
 
-  const int batch_num = mvp_bbox.size();
-  std::vector<std::vector<std::vector<half>>> det_bbox(batch_num);
-  std::vector<std::vector<half>> det_conf(batch_num);
-  std::vector<std::vector<half>> det_cls(batch_num);
+    const int batch_num = mvp_bbox.size();
+    std::vector<std::vector<std::vector<half>>> det_bbox(batch_num);
+    std::vector<std::vector<half>> det_conf(batch_num);
+    std::vector<std::vector<half>> det_cls(batch_num);
 
-  const int roi_hw = 32;
-  std::vector<std::vector<float>> real_decs;
-  for (int i = 0; i < batch_num; ++i) {
-    const int box_num = mv_outputs_dim[0][2];
-    const std::vector<const half *> &bbox_batch_i = mvp_bbox[i];
-    const std::vector<const half *> &conf_batch_i = mvp_conf[i];
-    const std::vector<const half *> &cls_batch_i = mvp_cls[i];
-    NMS_bboxTranspose(box_num, bbox_batch_i, conf_batch_i, cls_batch_i,
-                      det_bbox[i], det_conf[i], det_cls[i], m_conf_thres,
-                      m_iou_thres, m_max_det);
+    const int roi_hw = 32;
+    std::vector<std::vector<float>> real_decs;
+    for (int i = 0; i < batch_num; ++i) {
+      const int box_num = mv_outputs_dim[0][2];
+      const std::vector<const half *> &bbox_batch_i = mvp_bbox[i];
+      const std::vector<const half *> &conf_batch_i = mvp_conf[i];
+      const std::vector<const half *> &cls_batch_i = mvp_cls[i];
+      NMS_bboxTranspose(box_num, bbox_batch_i, conf_batch_i, cls_batch_i,
+                        det_bbox[i], det_conf[i], det_cls[i], m_conf_thres,
+                        m_iou_thres, m_max_det);
 
-    // filter detection. each DEC assign to one 32x32 patch.
-    assert(m_input_w / roi_hw == 40);
-    assert(m_input_h / roi_hw == 40);
-    float c_x, c_y, w, h, conf;
-    int grid_x, grid_y;
-    int grid_group_x, grid_group_y;
-    int grid_sub_x, grid_sub_y;
-    std::array<std::array<std::array<float, 6>, 400>, 4> v_filted_decs = {0.f};
-    for (auto j = 0; j < det_bbox[i].size(); ++j) {
-      const std::vector<half> &box = det_bbox[i][j];
-      c_x = 0.5f * (box[0] + box[2]);
-      c_y = 0.5f * (box[1] + box[3]);
-      conf = det_conf[i][j];
-      grid_x = static_cast<int>(c_x / roi_hw);
-      grid_y = static_cast<int>(c_y / roi_hw);
-      grid_group_x = grid_x / 20;
-      grid_group_y = grid_y / 20;
-      grid_sub_x = grid_x % 20;
-      grid_sub_y = grid_y % 20;
+      // filter detection. each DEC assign to one 32x32 patch.
+      assert(m_input_w / roi_hw == 40);
+      assert(m_input_h / roi_hw == 40);
+      float c_x, c_y, w, h, conf;
+      int grid_x, grid_y;
+      int grid_group_x, grid_group_y;
+      int grid_sub_x, grid_sub_y;
+      std::array<std::array<std::array<float, 6>, 400>, 4> v_filted_decs = {
+          0.f};
+      for (auto j = 0; j < det_bbox[i].size(); ++j) {
+        const std::vector<half> &box = det_bbox[i][j];
+        c_x = 0.5f * (box[0] + box[2]);
+        c_y = 0.5f * (box[1] + box[3]);
+        conf = det_conf[i][j];
+        grid_x = static_cast<int>(c_x / roi_hw);
+        grid_y = static_cast<int>(c_y / roi_hw);
+        grid_group_x = grid_x / 20;
+        grid_group_y = grid_y / 20;
+        grid_sub_x = grid_x % 20;
+        grid_sub_y = grid_y % 20;
 
-      const int group_id = grid_group_y * 2 + grid_group_x;
-      const int filted_id = grid_sub_y * 20 + grid_sub_x;
-      auto &filted_dec_i = v_filted_decs[group_id][filted_id];
-      const float &current_best_conf = filted_dec_i[4];
-      std::cout << "filted_id: " << filted_id << std::endl;
-      if (filted_id < 400 && conf > current_best_conf) {
-        float w = box[2] - box[0];
-        float h = box[3] - box[1];
-        filted_dec_i = {c_x, c_y, w, h, conf, det_cls[i][j]};
-      }
-    }
-    // change to real location
-    for (int group_i = 0; group_i < 4; ++group_i) {
-      grid_group_x = group_i % 2;
-      grid_group_y = group_i / 2;
-      const int instance_num = mvv_toplefts4[group_i].size();
-      for (int k = 0; k < instance_num; ++k) {
-        const auto &tl = mvv_toplefts4[group_i][k];
-        const auto &dec = v_filted_decs[group_i][k];
-        grid_sub_x = k % 20;
-        grid_sub_y = k / 20;
-        grid_x = grid_group_x * 20 + grid_sub_x;
-        grid_y = grid_group_y * 20 + grid_sub_y;
-        if (dec[4] > 0) {
-          c_x = dec[0] - roi_hw * grid_x + tl.first;
-          c_y = dec[0] - roi_hw * grid_y + tl.second;
-        } else {
-          c_x = static_cast<float>(tl.first);
-          c_y = static_cast<float>(tl.second);
+        const int group_id = grid_group_y * 2 + grid_group_x;
+        const int filted_id = grid_sub_y * 20 + grid_sub_x;
+        auto &filted_dec_i = v_filted_decs[group_id][filted_id];
+        const float &current_best_conf = filted_dec_i[4];
+        std::cout << "filted_id: " << filted_id << std::endl;
+        if (filted_id < 400 && conf > current_best_conf) {
+          float w = box[2] - box[0];
+          float h = box[3] - box[1];
+          filted_dec_i = {c_x, c_y, w, h, conf, det_cls[i][j]};
         }
-        real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
+      }
+      // change to real location
+      for (int group_i = 0; group_i < 4; ++group_i) {
+        grid_group_x = group_i % 2;
+        grid_group_y = group_i / 2;
+        const int instance_num = mvv_toplefts4[group_i].size();
+        for (int k = 0; k < instance_num; ++k) {
+          const auto &tl = mvv_toplefts4[group_i][k];
+          const auto &dec = v_filted_decs[group_i][k];
+          grid_sub_x = k % 20;
+          grid_sub_y = k / 20;
+          grid_x = grid_group_x * 20 + grid_sub_x;
+          grid_y = grid_group_y * 20 + grid_sub_y;
+          if (dec[4] > 0) {
+            c_x = dec[0] - roi_hw * grid_x + tl.first;
+            c_y = dec[0] - roi_hw * grid_y + tl.second;
+          } else {
+            c_x = static_cast<float>(tl.first);
+            c_y = static_cast<float>(tl.second);
+          }
+          real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
+        }
       }
     }
-  }
 
-  std::stringstream ss;
-  uint8_t cameraId = 0;
-  ss << "decs_camera-" << cameraId << "_image-" << std::setw(6)
-     << std::setfill('0') << m_imageId << "_" << m_timestamp << ".bin";
-
-  if (mb_sock_connected) {
-    send_dection_results(m_sock, real_decs, cameraId, m_timestamp);
-  }
-  if (mb_save_results) {
-    save_detect_results(real_decs, cameraId, m_timestamp, m_output_dir,
-                        ss.str());
-  }
-  if (mb_save_csv) {
-    std::stringstream ss;
-    ss << "decs_camera-" << cameraId << "_image-" << std::setw(6)
-       << std::setfill('0') << m_imageId << "_" << m_timestamp << ".csv";
-    save_detect_results_csv(real_decs, m_output_dir, ss.str());
-  }
-
-  auto postp_end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      postp_end - postp_start);
-  auto d2h_cost = std::chrono::duration_cast<std::chrono::milliseconds>(
-      postp_start - d2h_start);
-
-  logger.log(DEBUG, "Post-processing cost: ", duration.count(),
-             "ms, D2H cost: ", d2h_cost.count(), "ms");
-  mb_yolo_ready = true;
-}
-
-YOLOV8_combine::~YOLOV8_combine() {
-  if (mb_sock_connected) {
-    close(m_sock);
-    mb_sock_connected = false;
-    logger.log(INFO, "Disconnected from TCP server.");
+    send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                      real_decs, m_cameraId, m_imageId, m_timestamp,
+                      m_output_dir);
   }
 }
 
-YOLOV8Sync_combine::YOLOV8Sync_combine(const std::string &modelPath,
-                                       const std::string &output_dir,
-                                       const std::string &aclJSON)
+YOLOV8Sync::YOLOV8Sync(const std::string &modelPath,
+                       const std::string &output_dir,
+                       const std::string &aclJSON)
     : NNNYOLOV8(modelPath, aclJSON) {
   char c_output_dir[PATH_MAX];
   if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
@@ -407,15 +317,14 @@ YOLOV8Sync_combine::YOLOV8Sync_combine(const std::string &modelPath,
   }
 }
 
-void YOLOV8Sync_combine::set_postprocess_parameters(float conf_thres,
-                                                    float iou_thres,
-                                                    int max_det) {
+void YOLOV8Sync::set_postprocess_parameters(float conf_thres, float iou_thres,
+                                            int max_det) {
   m_conf_thres = conf_thres;
   m_iou_thres = iou_thres;
   m_max_det = max_det;
 }
 
-void YOLOV8Sync_combine::post_process(
+void YOLOV8Sync::post_process(
     std::vector<std::vector<std::vector<half>>> &det_bbox,
     std::vector<std::vector<half>> &det_conf,
     std::vector<std::vector<half>> &det_cls) {
@@ -452,6 +361,90 @@ void YOLOV8Sync_combine::post_process(
   }
 }
 
+bool YOLOV8Sync::process_one_image(
+    const std::vector<unsigned char> &input_yuv,
+    const std::vector<std::pair<int, int>> &v_toplefts, uint8_t cameraId,
+    int imageId, uint64_t timestamp) {
+
+  mb_yolo_ready = false;
+
+  std::vector<std::vector<std::vector<half>>> det_bbox;
+  std::vector<std::vector<half>> det_conf;
+  std::vector<std::vector<half>> det_cls;
+  // host to device
+  {
+    Timer timer("yolov8 H2D ...");
+    Host2Device(input_yuv.data(), input_yuv.size());
+  }
+
+  // inference
+  {
+    Timer timer("yolov8 inferencing ...");
+    Execute();
+  }
+
+  // postprocess
+  {
+    Timer timer("yolov8 postprocessing ...");
+    post_process(det_bbox, det_conf, det_cls);
+  }
+
+  // filter detections. each DEC assign to one 32x32 patch
+  int roi_hw = 32;
+  const int grid_num_x = m_input_w / roi_hw;
+  const int grid_num_y = m_input_h / roi_hw;
+  float c_x, c_y, w, h, conf;
+  int grid_x, grid_y;
+  std::array<std::array<float, 6>, 400> filted_decs = {0};
+  std::vector<std::vector<float>> real_decs;
+  for (int i = 0; i < det_bbox.size(); ++i) {
+    for (auto j = 0; j < det_bbox[i].size(); ++j) {
+      const std::vector<half> &box = det_bbox[i][j];
+      c_x = 0.5f * (box[0] + box[2]);
+      c_y = 0.5f * (box[1] + box[3]);
+      conf = det_conf[i][j];
+      grid_x = static_cast<int>(c_x / roi_hw);
+      grid_y = static_cast<int>(c_y / roi_hw);
+
+      const int filted_id = grid_y * grid_num_x + grid_x;
+      const float &current_best_conf = filted_decs[filted_id][4];
+      if (filted_id < 100 && conf > current_best_conf) {
+        float w = box[2] - box[0];
+        float h = box[3] - box[1];
+        filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
+      }
+    }
+
+    // change to real location
+    const int instance_num = static_cast<int>(v_toplefts.size());
+    for (int k = 0; k < instance_num; ++k) {
+      const auto &tl = v_toplefts[k];
+      const auto &dec = filted_decs[k];
+      grid_x = k % grid_num_x;
+      grid_y = k / grid_num_x;
+      if (dec[4] > 0) {
+        c_x = dec[0] - roi_hw * grid_x + tl.first;
+        c_y = dec[1] - roi_hw * grid_y + tl.second;
+      } else {
+        c_x = static_cast<float>(tl.first);
+        c_y = static_cast<float>(tl.second);
+      }
+      real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
+    }
+  }
+
+  send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                    real_decs, cameraId, imageId, timestamp, m_output_dir);
+
+  mb_yolo_ready = true;
+  return true;
+}
+
+YOLOV8Sync_combine::YOLOV8Sync_combine(const std::string &modelPath,
+                                       const std::string &output_dir,
+                                       const std::string &aclJSON)
+    : YOLOV8Sync(modelPath, output_dir, aclJSON) {}
+
 bool YOLOV8Sync_combine::process_one_image(
     const std::vector<unsigned char> &input_yuv,
     const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
@@ -480,7 +473,6 @@ bool YOLOV8Sync_combine::process_one_image(
     post_process(det_bbox, det_conf, det_cls);
   }
 
-  // TODO: change to real location
   // filter detections. each DEC assign to one 32x32 patch
   int roi_hw = 32;
   assert(m_input_w / roi_hw == 40);
@@ -528,7 +520,7 @@ bool YOLOV8Sync_combine::process_one_image(
         grid_y = grid_group_y * 20 + grid_sub_y;
         if (dec[4] > 0) {
           c_x = dec[0] - roi_hw * grid_x + tl.first;
-          c_y = dec[0] - roi_hw * grid_y + tl.second;
+          c_y = dec[1] - roi_hw * grid_y + tl.second;
         } else {
           c_x = static_cast<float>(tl.first);
           c_y = static_cast<float>(tl.second);
@@ -537,59 +529,9 @@ bool YOLOV8Sync_combine::process_one_image(
       }
     }
   }
-  std::stringstream ss;
-  ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
-     << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp
-     << ".bin";
-  if (mb_sock_connected) {
-    send_dection_results(m_sock, real_decs, cameraId, timestamp);
-  }
-  if (mb_save_results) {
-    save_detect_results(real_decs, cameraId, timestamp, m_output_dir, ss.str());
-  }
-  if (mb_save_csv) {
-    std::stringstream ss;
-    ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
-       << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp
-       << ".csv";
-    save_detect_results_csv(real_decs, m_output_dir, ss.str());
-  }
+  send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                    real_decs, cameraId, imageId, timestamp, m_output_dir);
 
   mb_yolo_ready = true;
   return true;
-}
-
-YOLOV8Sync_combine::~YOLOV8Sync_combine() {
-  if (mb_sock_connected) {
-    close(m_sock);
-    mb_sock_connected = false;
-    logger.log(INFO, "Disconnected from TCP server.");
-  }
-}
-
-void YOLOV8Sync_combine::connect_to_tcp(const std::string &ip, const int port) {
-  m_sock = 0;
-  struct sockaddr_in serv_addr;
-
-  if ((m_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logger.log(ERROR, "Socket creation failed.");
-    return;
-  }
-
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(port);
-
-  if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-    logger.log(ERROR, "Invalid address / Address not supported.");
-    return;
-  }
-
-  if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    logger.log(ERROR, "Connection Failed.");
-    return;
-  }
-
-  mb_sock_connected = true;
-  logger.log(INFO, "Connected to TCP server at ", ip, ":", port);
-  return;
 }
