@@ -101,6 +101,13 @@ add_executable(md4k_yoloThread_merge_rois_async_vdec_vpss_nnn ./examples/md4k_yo
 add_executable(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns ./examples/md4k_yoloThread_merge_rois_async_vpss_nnn_2chns.cpp
   ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
 
+add_executable(md_yoloThread_merge_rois_async_vdec_vpss_nnn ./examples/md_yoloThread_merge_rois_async_vdec_vpss_nnn.cpp
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
+
+add_executable(md_yolo_merge_rois_sync_vdec_vpss_nnn ./examples/md_yolo_merge_rois_sync_vdec_vpss_nnn.cpp
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
 add_executable(test_vpss_get_chn ./test/test_vpss_get_chn.cpp  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
 add_executable(test_md_vpss ./test/test_md_vpss.cpp  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC})
 
@@ -194,6 +201,44 @@ target_link_libraries(md_yolo_merge_rois_async_vdec_vpss_nnn
   swscale
   stdc++ # note this line is important
 )
+
+target_link_libraries(md_yoloThread_merge_rois_async_vdec_vpss_nnn
+  ive_md
+  ascendcl
+  pthread
+  ${YOLO_LIB}
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${ACL_LIBS}
+  ${IVE_LINK_LIBS}
+  hardware_decode
+  avformat
+  avcodec
+  avutil
+  swresample
+  swscale
+  stdc++ # note this line is important
+)
+
+
+target_link_libraries(md_yolo_merge_rois_sync_vdec_vpss_nnn
+  ive_md
+  ascendcl
+  pthread
+  ${YOLO_LIB}
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${ACL_LIBS}
+  ${IVE_LINK_LIBS}
+  hardware_decode
+  avformat
+  avcodec
+  avutil
+  swresample
+  swscale
+  stdc++ # note this line is important
+)
+
 
 target_link_libraries(md_yolo_merge_rois_async_vpss_nnn_2chns
   ive_md

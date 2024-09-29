@@ -37,7 +37,7 @@ void signal_handler(int signum) { running = false; }
 
 int main(int argc, char *argv[]) {
   std::cout << "Usage: " << argv[0] << " <config_path>" << std::endl;
-  std::string configure_path = "../data/configure_4k_nnn.json";
+  std::string configure_path = "../data/configure.json";
 
   if (argc > 1)
     configure_path = argv[1];
@@ -75,8 +75,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url", "om_path",     "tcp_id",   "tcp_port",        "output_dir",
-      "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
+      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
+      "output_dir", "roi_hw",  "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -99,26 +99,24 @@ int main(int argc, char *argv[]) {
   const int merged_size = merged_hw * merged_hw * 1.5;
 
   // Pre-allocate buffers outside the loop
-  std::vector<std::vector<unsigned char>> v_merged_roi4(
-      4, std::vector<unsigned char>(merged_size));
-  std::vector<unsigned char> merged_roi_combined(merged_size * 4, 0);
-
-  std::vector<ot_ive_ccblob> blob4(4, {0});
+  std::vector<unsigned char> merged_roi(merged_size, 0);
+  ot_ive_ccblob blob = {0};
 
   char absolute_path[PATH_MAX];
 
-  const int IMAGE_SIZE = OT_SAMPLE_MD_WIDTH * OT_SAMPLE_MD_HEIGHT * 1.5;
+  const int IMAGE_SIZE = OT_SAMPLE_MD_WIDTH * OT_SAMPLE_MD_HEIGHT;
+  const int IMAGE_SIZE2 = OT_SAMPLE_MD_WIDTH * OT_SAMPLE_MD_HEIGHT * 4 * 1.5;
 
   // initialize md
   // NOTE: md should initialized before SVPNNN
-  std::vector<IVE_MD> v_md4(4);
+  IVE_MD md;
 
   // initialize ffmpeg_vdec_vpss
   HardwareDecoder decoder(rtsp_url, decode_step_mode);
   decoder.start_decode();
 
   // 初始化NPU
-  YOLOV8_combine yolov8(omPath, output_dir);
+  YOLOV8Sync yolov8(omPath, output_dir);
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
@@ -137,11 +135,12 @@ int main(int argc, char *argv[]) {
   int frame_id = 0;
 
   // Pre-allocate buffers
-  std::vector<std::vector<unsigned char>> img4(
-      4, std::vector<unsigned char>(IMAGE_SIZE));
+  std::vector<unsigned char> img(IMAGE_SIZE);
+  std::vector<unsigned char> img_high(IMAGE_SIZE2);
 
   auto start_time = std::chrono::high_resolution_clock::now();
   while (running && !decoder.is_ffmpeg_exit()) {
+
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
       auto duration =
@@ -154,7 +153,8 @@ int main(int argc, char *argv[]) {
     {
       Timer timer("Get Frames");
       if (decoder.get_frame_without_release()) {
-        copy_split_yuv420_from_frame(img4, &decoder.frame_H);
+        copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
+                               &decoder.frame_H);
       } else {
         break;
       }
@@ -162,65 +162,35 @@ int main(int argc, char *argv[]) {
 
     {
       Timer timer("md");
-      for (int i = 0; i < 4; ++i) {
-        v_md4[i].process(img4[i].data(), &blob4[i]);
-        logger.log(DEBUG, "instance number: ",
-                   static_cast<int>(blob4[i].info.bits.rgn_num));
-      }
+      md.process(decoder.frame_L, &blob);
+      logger.log(DEBUG,
+                 "instance number: ", static_cast<int>(blob.info.bits.rgn_num));
 
       decoder.release_frames();
     }
 
     // 合并ROI
-    std::vector<std::vector<std::pair<int, int>>> vv_top_lefts4(4);
+    std::vector<std::pair<int, int>> top_lefts;
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
-      for (int i = 0; i < 4; ++i) {
-        std::vector<std::pair<int, int>> top_lefts_i;
-        merge_rois(img4[i].data(), &blob4[i], v_merged_roi4[i], top_lefts_i,
-                   4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
-        int top_lefts_offset_x_i = (i % 2) * 1920;
-        int top_lefts_offset_y_i = (i / 2) * 1080;
-        for (auto &tl : top_lefts_i) {
-          tl.first = tl.first + top_lefts_offset_x_i;
-          tl.second = tl.second + top_lefts_offset_y_i;
-        }
-        vv_top_lefts4[i] = std::move(top_lefts_i);
-      }
-      // merge to 4k
-      combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
-                       merged_roi_combined);
-      // // debug
-      // // save merged_roi
-      // save_merged_rois(merged_roi_combined, output_dir, frame_id);
+      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
+                 2160, 3840, merged_hw, merged_hw);
     }
 
-    if (yolov8.mb_yolo_ready) {
-      Timer timer("sync");
-      sync_flag = yolov8.SynchronizeStream();
-      if (sync_flag != SUCCESS) {
-        logger.log(ERROR, "synchronizeStream failed");
-        return 1;
-      }
-    }
+    // // debug
+    // // save merged_roi
+    // save_merged_rois(merged_roi, output_dir, frame_id);
 
     // 输入到NPU, 推理
     if (yolov8.mb_yolo_ready) {
-      yolov8.mb_yolo_ready = false;
       Timer timer("yolov8");
-      yolov8.mvv_toplefts4 = std::move(vv_top_lefts4);
-      yolov8.update_imageId(frame_id, decoder.frame_H.video_frame.pts);
-      yolov8.Host2Device(reinterpret_cast<char *>(merged_roi_combined.data()),
-                         merged_roi_combined.size());
-      yolov8.ExecuteRPN_Async();
+      uint8_t cameraId = 0;
+      uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
+      yolov8.process_one_image(merged_roi, top_lefts, cameraId, frame_id,
+                               timestamp);
     }
-
     frame_id++;
   }
 
-  if (yolov8.SynchronizeStream() != SUCCESS) {
-    logger.log(ERROR, "synchronizeStream failed");
-    return 1;
-  }
   return 0;
 }

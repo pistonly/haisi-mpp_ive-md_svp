@@ -94,7 +94,6 @@ public:
                      const std::string &aclJSON = "");
 
   std::string m_output_dir;
-  uint64_t m_timestamp = 0;
   bool mb_save_results = false;
   bool mb_save_csv = false;
   bool mb_yolo_ready = true;
@@ -123,7 +122,6 @@ public:
   float m_conf_thres = default_conf_thres;
   float m_iou_thres = default_iou_thres;
   int m_max_det = default_max_det;
-  int m_imageId = 0;
 };
 
 class YOLOV8Sync_combine : public YOLOV8Sync {

@@ -112,8 +112,8 @@ int main(int argc, char *argv[]) {
 
   // 检查必需的键值
   std::vector<std::string> required_keys = {
-      "rtsp_url",   "om_path", "tcp_id",     "tcp_port",
-      "output_dir", "roi_hw",  "save_result"};
+      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
+      "output_dir", "roi_hw",  "save_result", "save_csv"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
   std::string output_dir = config_data["output_dir"];
   int roi_hw = config_data["roi_hw"];
   bool b_save_result = config_data["save_result"];
+  bool b_save_csv = config_data["save_csv"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
   const int merged_hw = roi_hw * 20;
@@ -145,6 +146,7 @@ int main(int argc, char *argv[]) {
   YOLOV8_new yolov8(omPath, output_dir);
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
+  yolov8.mb_save_csv = b_save_csv;
   yolov8.m_conf_thres = config_data.value("conf_thres", yolov8.m_conf_thres);
   yolov8.m_iou_thres = config_data.value("iou_thres", yolov8.m_iou_thres);
   yolov8.m_max_det = config_data.value("max_det", yolov8.m_max_det);

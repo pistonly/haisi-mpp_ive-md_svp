@@ -5,8 +5,9 @@
     "tcp_port": "8880",
     "output_dir": "/mnt/data/tmp/",
     "roi_hw": 32,
-    "save_result": true,
+    "save_result": false,
+    "save_csv": true,
     "decode_step_mode": true,
     "conf_thres": 0.1,
-    "log_level": "INFO"
+    "log_level": "DEBUG"
 }

@@ -93,8 +93,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
-      "output_dir", "roi_hw",  "save_result", "decode_step_mode"};
+      "rtsp_url", "om_path",     "tcp_id",   "tcp_port",        "output_dir",
+      "roi_hw",   "save_result", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);

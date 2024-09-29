@@ -410,6 +410,7 @@ void HardwareDecoder::decode_thread_step() {
   ot_vdec_stream stream;
   int packet_num = 0;
 
+  auto last_time = std::chrono::high_resolution_clock::now();
   while (decoding_) {
     if (mb_step_mode) {
       if (!mb_decode_step_on) {
@@ -424,6 +425,18 @@ void HardwareDecoder::decode_thread_step() {
     } else {
       std::cerr << "mb_step_mode should be ture" << std::endl;
     }
+
+    // frame rate 25fps
+    auto current_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            current_time - last_time)
+                            .count();
+    if (elapsed_time < 40) {
+      // Sleep to control the frame rate
+      std::this_thread::sleep_for(std::chrono::milliseconds(40 - elapsed_time));
+    }
+    last_time = current_time;
+
     if (av_read_frame(fmt_ctx_, &packet) < 0)
       continue;
 

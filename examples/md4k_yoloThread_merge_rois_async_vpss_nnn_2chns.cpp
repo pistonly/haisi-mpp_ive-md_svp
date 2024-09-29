@@ -123,8 +123,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url",   "om_path", "tcp_id",      "tcp_port",
-      "output_dir", "roi_hw",  "save_result", "decode_step_mode"};
+      "rtsp_url", "om_path",     "tcp_id",   "tcp_port",        "output_dir",
+      "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
   std::string output_dir = config_data["output_dir"];
   const int roi_hw = config_data["roi_hw"];
   bool b_save_result = config_data["save_result"];
+  bool b_save_csv = config_data["save_csv"];
   bool decode_step_mode = config_data["decode_step_mode"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
@@ -169,6 +170,7 @@ int main(int argc, char *argv[]) {
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
+  yolov8.mb_save_csv = b_save_csv;
   if (config_data.contains("conf_thres"))
     yolov8.m_conf_thres = config_data["conf_thres"];
   if (config_data.contains("iou_thres"))
