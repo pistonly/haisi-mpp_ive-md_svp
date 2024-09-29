@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
   IVE_MD md_1(b_sys_init);
 
   // initialize npu
-  YOLOV8_nnn_2chns yolov8(omPath, output_dir);
+  YOLOV8_new yolov8(omPath, output_dir);
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
   yolov8.m_conf_thres = config_data.value("conf_thres", yolov8.m_conf_thres);
