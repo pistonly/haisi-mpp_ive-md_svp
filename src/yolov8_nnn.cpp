@@ -133,7 +133,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
 
       for (int k = 0; k < instance_num; ++k) {
         const auto &tl = m_toplefts[k];
-        const auto &dec = filted_decs[k];
+        auto &dec = filted_decs[k];
         grid_x = k % grid_num_x;
         grid_y = k / grid_num_x;
         if (dec[4] > 0) {
@@ -263,7 +263,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
         const int instance_num = mvv_toplefts4[group_i].size();
         for (int k = 0; k < instance_num; ++k) {
           const auto &tl = mvv_toplefts4[group_i][k];
-          const auto &dec = v_filted_decs[group_i][k];
+          auto &dec = v_filted_decs[group_i][k];
           grid_sub_x = k % 20;
           grid_sub_y = k / 20;
           grid_x = grid_group_x * 20 + grid_sub_x;
@@ -427,7 +427,7 @@ bool YOLOV8Sync::process_one_image(
     const int instance_num = static_cast<int>(v_toplefts.size());
     for (int k = 0; k < instance_num; ++k) {
       const auto &tl = v_toplefts[k];
-      const auto &dec = filted_decs[k];
+      auto &dec = filted_decs[k];
       grid_x = k % grid_num_x;
       grid_y = k / grid_num_x;
       if (dec[4] > 0) {
@@ -523,7 +523,7 @@ bool YOLOV8Sync_combine::process_one_image(
       const int instance_num = static_cast<int>(vv_toplefts4[group_i].size());
       for (int k = 0; k < instance_num; ++k) {
         const auto &tl = vv_toplefts4[group_i][k];
-        const auto &dec = v_filted_decs[group_i][k];
+        auto &dec = v_filted_decs[group_i][k];
         grid_sub_x = k % 20;
         grid_sub_y = k / 20;
         grid_x = grid_group_x * 20 + grid_sub_x;
