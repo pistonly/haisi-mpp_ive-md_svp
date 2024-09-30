@@ -142,6 +142,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
         } else {
           c_x = static_cast<float>(tl.first);
           c_y = static_cast<float>(tl.second);
+          dec[5] = -1.f;
         }
         real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
       }
@@ -273,6 +274,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
           } else {
             c_x = static_cast<float>(tl.first);
             c_y = static_cast<float>(tl.second);
+            dec[5] = -1.f;
           }
           real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
         }
@@ -434,6 +436,7 @@ bool YOLOV8Sync::process_one_image(
       } else {
         c_x = static_cast<float>(tl.first);
         c_y = static_cast<float>(tl.second);
+        dec[5] = -1.f;
       }
       real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
     }
@@ -531,6 +534,7 @@ bool YOLOV8Sync_combine::process_one_image(
         } else {
           c_x = static_cast<float>(tl.first);
           c_y = static_cast<float>(tl.second);
+          dec[5] = -1.f;
         }
         real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
       }
