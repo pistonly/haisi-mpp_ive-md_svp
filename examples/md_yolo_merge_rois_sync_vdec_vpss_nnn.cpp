@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
 
   // 初始化NPU
   YOLOV8Sync yolov8(omPath, output_dir);
+  uint8_t cameraId = getCameraId();
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
@@ -184,7 +185,6 @@ int main(int argc, char *argv[]) {
     // 输入到NPU, 推理
     if (yolov8.mb_yolo_ready) {
       Timer timer("yolov8");
-      uint8_t cameraId = 0;
       uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
       yolov8.process_one_image(merged_roi, top_lefts, cameraId, frame_id,
                                timestamp);

@@ -119,6 +119,7 @@ int main(int argc, char *argv[]) {
 
   // 初始化NPU
   YOLOV8_combine yolov8(omPath, output_dir);
+  uint8_t cameraId = getCameraId();
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
@@ -209,7 +210,7 @@ int main(int argc, char *argv[]) {
       yolov8.mb_yolo_ready = false;
       Timer timer("yolov8");
       yolov8.mvv_toplefts4 = std::move(vv_top_lefts4);
-      yolov8.update_imageId(frame_id, decoder.frame_H.video_frame.pts);
+      yolov8.update_imageId(frame_id, decoder.frame_H.video_frame.pts, cameraId);
       yolov8.Host2Device(reinterpret_cast<char *>(merged_roi_combined.data()),
                          merged_roi_combined.size());
       yolov8.ExecuteRPN_Async();

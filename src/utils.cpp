@@ -518,3 +518,39 @@ void combine_YUV420sp(
     }
   }
 }
+
+std::string getIPAddressUsingIfconfig() {
+  FILE *pipe = popen("ifconfig", "r");
+  if (!pipe) {
+    std::cerr << "popen failed" << std::endl;
+    return "";
+  }
+
+  std::stringstream buffer;
+  char ch;
+  while (fread(&ch, 1, 1, pipe) > 0) {
+    buffer.put(ch);
+  }
+
+  std::string output = buffer.str();
+  pclose(pipe);
+
+  std::size_t inetPos = output.find("inet ");
+  if (inetPos == std::string::npos) {
+    return "";
+  }
+
+  std::size_t addrStart = output.find_first_not_of(" \t", inetPos + 5);
+  std::size_t addrEnd = output.find_first_of(" \t\n", addrStart);
+  return output.substr(addrStart, addrEnd - addrStart);
+}
+
+uint8_t getCameraId() {
+  std::string ipAddress = getIPAddressUsingIfconfig();
+  std::size_t lastDotPos = ipAddress.find_last_of('.');
+  if (lastDotPos == std::string::npos) {
+    return -1;
+  }
+  std::string lastOctetStr = ipAddress.substr(lastDotPos + 1);
+  return static_cast<uint8_t>(std::stoi(lastOctetStr));
+}

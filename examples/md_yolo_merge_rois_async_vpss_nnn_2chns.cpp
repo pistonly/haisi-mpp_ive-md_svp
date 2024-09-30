@@ -144,6 +144,7 @@ int main(int argc, char *argv[]) {
 
   // initialize npu
   YOLOV8_new yolov8(omPath, output_dir);
+  uint8_t cameraId = getCameraId();
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
@@ -213,9 +214,9 @@ int main(int argc, char *argv[]) {
           return 1;
         }
         yolov8.m_toplefts = std::move(top_lefts);
-        int current_ch = 0;
+        uint8_t cameraId_tmp = cameraId;
         yolov8.update_imageId(frame_id, v_frame_chns[1].video_frame.pts,
-                              current_ch);
+                              cameraId_tmp);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();
@@ -254,9 +255,9 @@ int main(int argc, char *argv[]) {
           return 1;
         }
         yolov8.m_toplefts = std::move(top_lefts_1);
-        int current_ch = 1;
+        uint8_t cameraId_tmp = cameraId + 1;
         yolov8.update_imageId(frame_id, v_frame_chns[3].video_frame.pts,
-                              current_ch);
+                              cameraId_tmp);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
         yolov8.ExecuteRPN_Async();

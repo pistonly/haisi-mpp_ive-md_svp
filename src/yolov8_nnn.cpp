@@ -67,8 +67,8 @@ YOLOV8_new::YOLOV8_new(const std::string &modelPath,
 }
 
 void YOLOV8_new::update_imageId(int imageId, uint64_t time_stamp,
-                                int cameraId) {
-  m_cameraId = static_cast<uint8_t>(cameraId);
+                                uint8_t cameraId) {
+  m_cameraId = cameraId;
   m_imageId = imageId;
   m_timestamp = time_stamp;
 }
@@ -380,7 +380,13 @@ bool YOLOV8Sync::process_one_image(
   // inference
   {
     Timer timer("yolov8 inferencing ...");
+    auto t0 = std::chrono::high_resolution_clock::now();
     Execute();
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            t1 - t0)
+                            .count();
+    m_infer_total_time += elapsed_time;
   }
 
   // postprocess
@@ -437,6 +443,7 @@ bool YOLOV8Sync::process_one_image(
                     real_decs, cameraId, imageId, timestamp, m_output_dir);
 
   mb_yolo_ready = true;
+  m_processed_num++;
   return true;
 }
 

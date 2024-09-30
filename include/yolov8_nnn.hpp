@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "tcp_tools.hpp"
+#include "utils.hpp"
 
 using half_float::half;
 
@@ -43,7 +44,7 @@ public:
 
 
   void CallbackFunc(void *data) override;
-  void update_imageId(int imageId, uint64_t time_stamp, int cameraId=0);
+  void update_imageId(int imageId, uint64_t time_stamp, uint8_t cameraId=0);
 };
 
 /*
@@ -92,11 +93,18 @@ public:
   YOLOV8Sync(const std::string &modelPath,
                      const std::string &output_dir = "./",
                      const std::string &aclJSON = "");
+  ~YOLOV8Sync(){
+    logger.log(INFO, "\n---------------------------\n",
+               "averaged infer time: ", m_infer_total_time / m_processed_num,
+               "ms\n", "---------------------------\n");
+  }
 
   std::string m_output_dir;
   bool mb_save_results = false;
   bool mb_save_csv = false;
   bool mb_yolo_ready = true;
+  int m_processed_num = 0;
+  float m_infer_total_time = 0;
 
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_input_h, m_input_w;

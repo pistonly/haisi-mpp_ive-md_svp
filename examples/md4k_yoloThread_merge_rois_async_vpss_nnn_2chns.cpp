@@ -166,6 +166,7 @@ int main(int argc, char *argv[]) {
 
   // 初始化NPU
   YOLOV8Sync_combine yolov8(omPath, output_dir);
+  uint8_t cameraId = getCameraId();
 
   // connect to tcp server
   yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
@@ -271,18 +272,18 @@ int main(int argc, char *argv[]) {
     // 输入到NPU, 推理改为异步执行
     if (yolov8.mb_yolo_ready) {
       Timer timer("yolov8");
-      uint8_t cameraId = 0;
       uint64_t timestamp = 0;
+      uint8_t cameraId_tmp;
       if (b_yolo_on_camera0) {
-        cameraId = 0;
+        cameraId_tmp = cameraId;
         timestamp = v_frame_chns[1].video_frame.pts / 1000; // ms
       } else {
-        cameraId = 1;
+        cameraId_tmp = cameraId + 1;
         timestamp = v_frame_chns[3].video_frame.pts / 1000; // ms
       }
       // 创建新线程
       std::thread asyncTask(
-          processInThread, cameraId, std::ref(merged_roi_combined),
+          processInThread, cameraId_tmp, std::ref(merged_roi_combined),
           std::ref(vv_top_lefts4), std::ref(yolov8), frame_id, timestamp);
       asyncTask.detach();
 

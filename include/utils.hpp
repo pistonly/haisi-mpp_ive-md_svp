@@ -12,6 +12,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
+#include <cstdio>
+#include <sstream>
+#include <string>
 
 // 定义日志级别
 enum LogLevel { DEBUG, INFO, WARNING, ERROR };
@@ -238,5 +241,9 @@ public:
   Timer(const std::string &) {}
 };
 #endif
+
+std::string getIPAddressUsingIfconfig(); 
+
+uint8_t getCameraId(); 
 
 #endif
