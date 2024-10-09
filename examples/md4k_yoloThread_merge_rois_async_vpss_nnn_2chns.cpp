@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
         cameraId_tmp = cameraId;
         timestamp = v_frame_chns[1].video_frame.pts / 1000; // ms
       } else {
-        cameraId_tmp = cameraId + 1;
+        cameraId_tmp = cameraId + 100;
         timestamp = v_frame_chns[3].video_frame.pts / 1000; // ms
       }
       // 创建新线程

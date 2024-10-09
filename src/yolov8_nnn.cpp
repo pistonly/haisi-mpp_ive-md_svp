@@ -16,18 +16,20 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
                        const std::vector<std::vector<float>> &real_decs,
                        uint8_t cameraId, int imageId, uint64_t timestamp,
                        const std::string &output_dir) {
-  std::stringstream ss;
-  ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
-     << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp;
-  if (sock_connected) {
-    send_dection_results(sock, real_decs, cameraId, timestamp);
-  }
-  if (save_bin) {
-    save_detect_results(real_decs, cameraId, timestamp, output_dir,
-                        ss.str() + ".bin");
-  }
-  if (save_csv) {
-    save_detect_results_csv(real_decs, output_dir, ss.str() + ".csv");
+  if (real_decs.size() > 0){
+    std::stringstream ss;
+    ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
+       << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp;
+    if (sock_connected) {
+      send_dection_results(sock, real_decs, cameraId, timestamp);
+    }
+    if (save_bin) {
+      save_detect_results(real_decs, cameraId, timestamp, output_dir,
+                          ss.str() + ".bin");
+    }
+    if (save_csv) {
+      save_detect_results_csv(real_decs, output_dir, ss.str() + ".csv");
+    }
   }
 }
 
