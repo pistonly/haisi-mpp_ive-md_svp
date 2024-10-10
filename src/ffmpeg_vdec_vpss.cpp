@@ -423,7 +423,7 @@ void HardwareDecoder::decode_thread_step() {
         }
       }
     } else {
-      std::cerr << "mb_step_mode should be ture" << std::endl;
+      logger.log(ERROR, "mb_step_mode should be ture");
     }
 
     // frame rate 25fps
@@ -450,8 +450,9 @@ void HardwareDecoder::decode_thread_step() {
 
       td_s32 ret = ss_mpi_vdec_send_stream(0, &stream, -1);
       if (ret != TD_SUCCESS) {
-        std::cerr << "Error sending stream to decoder for " << std::hex << ret
-                  << std::endl;
+        std::stringstream ss;
+        ss << "Error sending stream to decoder for " << std::hex << ret;
+        logger.log(ERROR, ss.str());
         break;
       }
       packet_num++;
@@ -626,14 +627,16 @@ bool HardwareDecoder::get_frame_without_release() {
     logger.log(ERROR, ss.str());
     return false;
   } else {
-    logger.log(DEBUG, "Received frame_Low with width: ");
-    if (mb_step_mode) {
-      logger.log(DEBUG, "set mb_decode_step_on");
-      mb_decode_step_on = true;
-    }
-
-    return true;
+    logger.log(DEBUG,
+               "Received frame_Low with width: ", frame_L.video_frame.width);
   }
+
+  if (mb_step_mode) {
+    logger.log(DEBUG, "set mb_decode_step_on");
+    mb_decode_step_on = true;
+  }
+
+  return true;
 }
 
 // std::atomic<bool> running(true);
