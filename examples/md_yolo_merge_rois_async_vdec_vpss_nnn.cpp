@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url", "om_path",     "tcp_id",   "tcp_port",        "output_dir",
+      "rtsp_url", "om_path",     "tcp_ip",   "tcp_port",        "output_dir",
       "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
 
   std::string rtsp_url = config_data["rtsp_url"];
   std::string omPath = config_data["om_path"];
-  std::string tcp_ip = config_data["tcp_id"];
+  std::string tcp_ip = config_data["tcp_ip"];
   std::string tcp_port = config_data["tcp_port"];
   std::string output_dir = config_data["output_dir"];
   const int roi_hw = config_data["roi_hw"];

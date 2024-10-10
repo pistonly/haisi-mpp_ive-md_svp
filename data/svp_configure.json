@@ -1,7 +1,7 @@
 {
     "rtsp_url": "rtsp://172.23.24.52:8554/test",
     "om_path": "/home/liuyang/Documents/haisi/ai-sd3403/ai-sd3403/models/yolov8n_air-little-obj_32_roi_new_640x640_rpn_original.om",
-    "tcp_id": "172.23.24.52",
+    "tcp_ip": "172.23.24.52",
     "tcp_port": "8880",
     "output_dir": "/mnt/disk/tmp_svp/",
     "roi_hw": 32,
