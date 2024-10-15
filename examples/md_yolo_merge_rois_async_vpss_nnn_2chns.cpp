@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
   // initialize npu
   YOLOV8_new yolov8(omPath, output_dir);
   uint8_t cameraId = getCameraId();
-  yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
+  // yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
   yolov8.m_conf_thres = config_data.value("conf_thres", yolov8.m_conf_thres);
