@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
         }
         yolov8.m_toplefts = std::move(top_lefts);
         uint8_t cameraId_tmp = cameraId;
-        yolov8.update_imageId(frame_id, v_frame_chns[1].video_frame.pts,
+        yolov8.update_imageId(frame_id, v_frame_chns[1].video_frame.pts / 1000,
                               cameraId_tmp);
         yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                            merged_size);
