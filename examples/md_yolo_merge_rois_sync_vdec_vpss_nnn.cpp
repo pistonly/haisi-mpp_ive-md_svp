@@ -119,8 +119,10 @@ int main(int argc, char *argv[]) {
   YOLOV8Sync yolov8(omPath, output_dir);
   uint8_t cameraId = getCameraId();
 
-  // connect to tcp server
-  yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
+  // tcp server
+  yolov8.m_tcp_ip = tcp_ip;
+  yolov8.m_tcp_port = std::stoi(tcp_port);
+
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
   if (config_data.contains("conf_thres"))

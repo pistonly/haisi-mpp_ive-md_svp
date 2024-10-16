@@ -36,6 +36,10 @@ public:
   bool mb_save_csv = false;
   uint8_t m_cameraId = 0;
 
+  // tcp
+  std::string m_tcp_ip = "0.0.0.0";
+  int m_tcp_port = 12321;
+
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;
   // mvp_conf shape: batch x branch_num x anchors
@@ -73,6 +77,10 @@ public:
   bool mb_save_csv = false;
   bool mb_yolo_ready = true;
 
+  // tcp
+  std::string m_tcp_ip = "0.0.0.0";
+  int m_tcp_port = 12321;
+
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;
   // mvp_conf shape: batch x branch_num x anchors
@@ -107,6 +115,10 @@ public:
 
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_input_h, m_input_w;
+
+  // tcp
+  std::string m_tcp_ip = "0.0.0.0";
+  int m_tcp_port = 12321;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;

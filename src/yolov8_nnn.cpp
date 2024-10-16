@@ -194,7 +194,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
                                    "%Y-%m-%d %H:%M:%S")
                   << std::endl;
 
-        connect_to_tcp("192.168.0.99", std::stoi("12321"));
+        connect_to_tcp(m_tcp_ip, m_tcp_port);
         send_save_results(mb_sock_connected, mb_save_results, mb_save_csv,
                           m_sock, real_decs, m_cameraId, m_imageId, m_timestamp,
                           m_output_dir);
@@ -357,7 +357,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
                                  "%Y-%m-%d %H:%M:%S")
                 << std::endl;
 
-      connect_to_tcp("192.168.0.99", std::stoi("12321"));
+      connect_to_tcp(m_tcp_ip, m_tcp_port);
       send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                         real_decs, m_cameraId, m_imageId, m_timestamp,
                         m_output_dir);
@@ -546,7 +546,7 @@ bool YOLOV8Sync::process_one_image(
                                "%Y-%m-%d %H:%M:%S")
               << std::endl;
 
-    connect_to_tcp("192.168.0.99", std::stoi("12321"));
+    connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
     if (mb_sock_connected) {
@@ -674,7 +674,7 @@ bool YOLOV8Sync_combine::process_one_image(
                                "%Y-%m-%d %H:%M:%S")
               << std::endl;
 
-    connect_to_tcp("192.168.0.99", std::stoi("12321"));
+    connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
     if (mb_sock_connected) {

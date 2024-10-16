@@ -145,12 +145,16 @@ int main(int argc, char *argv[]) {
   // initialize npu
   YOLOV8_new yolov8(omPath, output_dir);
   uint8_t cameraId = getCameraId();
-  // yolov8.connect_to_tcp(tcp_ip, std::stoi(tcp_port));
+  // tcp server
+  yolov8.m_tcp_ip = tcp_ip;
+  yolov8.m_tcp_port = std::stoi(tcp_port);
+
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
   yolov8.m_conf_thres = config_data.value("conf_thres", yolov8.m_conf_thres);
   yolov8.m_iou_thres = config_data.value("iou_thres", yolov8.m_iou_thres);
   yolov8.m_max_det = config_data.value("max_det", yolov8.m_max_det);
+
 
   signal(SIGINT, signal_handler); // 捕获 Ctrl+C
   int frame_id = 0;
