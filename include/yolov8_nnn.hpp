@@ -39,6 +39,7 @@ public:
   // tcp
   std::string m_tcp_ip = "0.0.0.0";
   int m_tcp_port = 12321;
+  float m_save_interval = 0;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;
@@ -80,6 +81,7 @@ public:
   // tcp
   std::string m_tcp_ip = "0.0.0.0";
   int m_tcp_port = 12321;
+  float m_save_interval = 0;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;
@@ -119,6 +121,7 @@ public:
   // tcp
   std::string m_tcp_ip = "0.0.0.0";
   int m_tcp_port = 12321;
+  float m_save_interval = 0;
 
   // mvp_bbox shape: batch x branch_num x (anchors * 4)
   std::vector<std::vector<const half *>> mvp_bbox;

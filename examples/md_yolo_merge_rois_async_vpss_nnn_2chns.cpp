@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::string rtsp_url = config_data["rtsp_url"];
+    std::string rtsp_url = config_data["rtsp_url"];
   std::string omPath = config_data["om_path"];
   std::string tcp_ip = config_data["tcp_ip"];
   std::string tcp_port = config_data["tcp_port"];
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
   yolov8.m_conf_thres = config_data.value("conf_thres", yolov8.m_conf_thres);
   yolov8.m_iou_thres = config_data.value("iou_thres", yolov8.m_iou_thres);
   yolov8.m_max_det = config_data.value("max_det", yolov8.m_max_det);
-
+  yolov8.m_save_interval = config_data.value("save_interval", yolov8.m_save_interval);
 
   signal(SIGINT, signal_handler); // 捕获 Ctrl+C
   int frame_id = 0;

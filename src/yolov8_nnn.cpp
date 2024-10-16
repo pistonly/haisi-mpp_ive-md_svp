@@ -16,27 +16,6 @@ extern Logger logger;
 
 // static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
 
-// void executeIfTimeIntervalExceeds() {
-//   // 获取当前时间点
-//   auto now = std::chrono::system_clock::now();
-//   std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-
-//   // 静态变量，保存上次执行时间
-//   static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
-
-//   // 判断时间间隔是否超过 1 秒
-//   if (difftime(currentTime, lastTime) > 1) {
-//     // 执行函数体
-//     std::cout << "Executing function at: "
-//               << std::put_time(std::localtime(&currentTime),
-//                                "%Y-%m-%d %H:%M:%S")
-//               << std::endl;
-
-//     // 更新 lastTime 为当前时间
-//     lastTime = currentTime;
-//   }
-// }
-
 void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
                        int sock,
                        const std::vector<std::vector<float>> &real_decs,
@@ -183,17 +162,13 @@ void YOLOV8_new::CallbackFunc(void *data) {
       }
 
       // 获取当前时间点
-      auto now = std::chrono::system_clock::now();
-      std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-      static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
+      auto currentTime = std::chrono::steady_clock::now();
+      static auto lastTime = std::chrono::steady_clock::now();
+      // 计算时间间隔
+      std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
 
-      if (difftime(currentTime, lastTime) > 1) {
+      if (elapsedSeconds.count() > m_save_interval) {
         // 执行函数体
-        std::cout << "Executing function at: "
-                  << std::put_time(std::localtime(&currentTime),
-                                   "%Y-%m-%d %H:%M:%S")
-                  << std::endl;
-
         connect_to_tcp(m_tcp_ip, m_tcp_port);
         send_save_results(mb_sock_connected, mb_save_results, mb_save_csv,
                           m_sock, real_decs, m_cameraId, m_imageId, m_timestamp,
@@ -340,23 +315,18 @@ void YOLOV8_combine::CallbackFunc(void *data) {
             dec[5] = 100;
           }
           real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
-
         }
       }
     }
 
     // 获取当前时间点
-    auto now = std::chrono::system_clock::now();
-    std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-    static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
+    auto currentTime = std::chrono::steady_clock::now();
+    static auto lastTime = std::chrono::steady_clock::now();
+    // 计算时间间隔
+    std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
 
-    if (difftime(currentTime, lastTime) > 1) {
+    if (elapsedSeconds.count() > m_save_interval) {
       // 执行函数体
-      std::cout << "Executing function at: "
-                << std::put_time(std::localtime(&currentTime),
-                                 "%Y-%m-%d %H:%M:%S")
-                << std::endl;
-
       connect_to_tcp(m_tcp_ip, m_tcp_port);
       send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                         real_decs, m_cameraId, m_imageId, m_timestamp,
@@ -535,17 +505,13 @@ bool YOLOV8Sync::process_one_image(
   }
 
   // 获取当前时间点
-  auto now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
+  auto currentTime = std::chrono::steady_clock::now();
+  static auto lastTime = std::chrono::steady_clock::now();
+  // 计算时间间隔
+  std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
 
-  if (difftime(currentTime, lastTime) > 1) {
+  if (elapsedSeconds.count() > m_save_interval) {
     // 执行函数体
-    std::cout << "Executing function at: "
-              << std::put_time(std::localtime(&currentTime),
-                               "%Y-%m-%d %H:%M:%S")
-              << std::endl;
-
     connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
@@ -663,17 +629,13 @@ bool YOLOV8Sync_combine::process_one_image(
   }
 
   // 获取当前时间点
-  auto now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
+  auto currentTime = std::chrono::steady_clock::now();
+  static auto lastTime = std::chrono::steady_clock::now();
+  // 计算时间间隔
+  std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
 
-  if (difftime(currentTime, lastTime) > 1) {
+  if (elapsedSeconds.count() > m_save_interval) {
     // 执行函数体
-    std::cout << "Executing function at: "
-              << std::put_time(std::localtime(&currentTime),
-                               "%Y-%m-%d %H:%M:%S")
-              << std::endl;
-
     connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
