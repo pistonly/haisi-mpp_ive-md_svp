@@ -37,8 +37,10 @@ void signal_handler(int signum) { running = false; }
 
 void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
                      std::vector<std::pair<int, int>> &v_top_lefts,
+                     std::vector<std::vector<float>> &v_blob_xyxy,
                      YOLOV8Sync &yolov8, int frame_id, int64_t pts) {
-  yolov8.process_one_image(merged_roi, v_top_lefts, cameraId, frame_id, pts);
+  yolov8.process_one_image(merged_roi, v_top_lefts, v_blob_xyxy, cameraId,
+                           frame_id, pts);
 }
 
 int main(int argc, char *argv[]) {
@@ -178,10 +180,11 @@ int main(int argc, char *argv[]) {
 
     // 合并ROI
     std::vector<std::pair<int, int>> top_lefts;
+    std::vector<std::vector<float>> blob_xyxy;
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
-      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
-                 2160, 3840, merged_hw, merged_hw);
+      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, blob_xyxy, 8.0f,
+                 8.0f, 2160, 3840, merged_hw, merged_hw);
     }
 
     // // debug
@@ -193,8 +196,8 @@ int main(int argc, char *argv[]) {
       Timer timer("yolov8");
       uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
       std::thread asyncTask(processInThread, cameraId, std::ref(merged_roi),
-                            std::ref(top_lefts), std::ref(yolov8), frame_id,
-                            timestamp);
+                            std::ref(top_lefts), std::ref(blob_xyxy),
+                            std::ref(yolov8), frame_id, timestamp);
       asyncTask.detach();
     }
     frame_id++;

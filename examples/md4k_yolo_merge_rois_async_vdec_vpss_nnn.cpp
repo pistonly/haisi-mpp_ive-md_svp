@@ -174,19 +174,28 @@ int main(int argc, char *argv[]) {
 
     // 合并ROI
     std::vector<std::vector<std::pair<int, int>>> vv_top_lefts4(4);
+    std::vector<std::vector<std::vector<float>>> vv_blob_xyxy4(4);
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
       for (int i = 0; i < 4; ++i) {
         std::vector<std::pair<int, int>> top_lefts_i;
+        std::vector<std::vector<float>> blob_xyxy_i;
         merge_rois(img4[i].data(), &blob4[i], v_merged_roi4[i], top_lefts_i,
-                   4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
+                   blob_xyxy_i, 4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
         for (auto &tl : top_lefts_i) {
           tl.first = tl.first + top_lefts_offset_x_i;
           tl.second = tl.second + top_lefts_offset_y_i;
         }
+        for (auto &xyxy : blob_xyxy_i) {
+          xyxy[0] += top_lefts_offset_x_i;
+          xyxy[1] += top_lefts_offset_y_i;
+          xyxy[2] += top_lefts_offset_x_i;
+          xyxy[3] += top_lefts_offset_y_i;
+        }
         vv_top_lefts4[i] = std::move(top_lefts_i);
+        vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
       }
       // merge to 4k
       combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
@@ -210,7 +219,9 @@ int main(int argc, char *argv[]) {
       yolov8.mb_yolo_ready = false;
       Timer timer("yolov8");
       yolov8.mvv_toplefts4 = std::move(vv_top_lefts4);
-      yolov8.update_imageId(frame_id, decoder.frame_H.video_frame.pts, cameraId);
+      yolov8.mvv_blob_xyxy4 = std::move(vv_blob_xyxy4);
+      yolov8.update_imageId(frame_id, decoder.frame_H.video_frame.pts,
+                            cameraId);
       yolov8.Host2Device(reinterpret_cast<char *>(merged_roi_combined.data()),
                          merged_roi_combined.size());
       yolov8.ExecuteRPN_Async();

@@ -4,17 +4,17 @@
 #include "ot_common_video.h"
 #include "ot_type.h"
 #include <arpa/inet.h>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <mutex>
 #include <netinet/in.h>
+#include <sstream>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
-#include <cstdio>
-#include <sstream>
-#include <string>
 
 // 定义日志级别
 enum LogLevel { DEBUG, INFO, WARNING, ERROR };
@@ -88,7 +88,8 @@ void send_dection_results(int sock, const std::vector<std::vector<float>> &decs,
  * @param[in] img: YUV format image
  * @param[in] p_blob Pointer to blob
  * @param[out] merged_rois: YUV format image
- * @param[in] top_lefts The lefts of top
+ * @param[out] top_lefts The lefts of top
+ * @param[out] xyxy from ccblob
  * @param[in] scale_x Description
  * @param[in] scale_y Description
  * @param[in] imgH Description
@@ -98,7 +99,8 @@ void send_dection_results(int sock, const std::vector<std::vector<float>> &decs,
  */
 void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
                 std::vector<unsigned char> &merged_rois,
-                std::vector<std::pair<int, int>> &top_lefts, float scale_x,
+                std::vector<std::pair<int, int>> &top_lefts,
+                std::vector<std::vector<float>> &blob_xyxy, float scale_x,
                 float scale_y, int imgH, int imgW, int merged_roi_H,
                 int merged_roi_W);
 
@@ -242,8 +244,8 @@ public:
 };
 #endif
 
-std::string getIPAddressUsingIfconfig(); 
+std::string getIPAddressUsingIfconfig();
 
-uint8_t getCameraId(); 
+uint8_t getCameraId();
 
 #endif

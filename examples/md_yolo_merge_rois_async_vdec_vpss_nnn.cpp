@@ -172,9 +172,10 @@ int main(int argc, char *argv[]) {
 
     // 合并ROI
     std::vector<std::pair<int, int>> top_lefts;
+    std::vector<std::vector<float>> blob_xyxy;
     {
       Timer timer("merge");
-      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
+      merge_rois(img_high.data(), &blob, merged_roi, top_lefts, blob_xyxy, 8.0f, 8.0f,
                  2160, 3840, merged_hw, merged_hw);
     }
 
@@ -195,6 +196,7 @@ int main(int argc, char *argv[]) {
     {
       Timer timer("yolov8");
       yolov8.m_toplefts = std::move(top_lefts);
+      yolov8.m_blob_xyxy = std::move(blob_xyxy);
       yolov8.update_imageId(frame_id++, decoder.frame_H.video_frame.pts / 1000, cameraId);
       yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                          merged_size);

@@ -265,10 +265,12 @@ void copy_split_yuv420_from_frame(
 
 void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
                 std::vector<unsigned char> &merged_rois,
-                std::vector<std::pair<int, int>> &top_lefts, float scale_x,
+                std::vector<std::pair<int, int>> &top_lefts,
+                std::vector<std::vector<float>> &blob_xyxy, float scale_x,
                 float scale_y, int imgH, int imgW, int merged_roi_H,
                 int merged_roi_W) {
   top_lefts.clear();
+  blob_xyxy.clear();
   // img and merged_rois are YUV format images.
   const int roi_size = 32;
   const int roi_size_half = roi_size / 2;
@@ -286,12 +288,12 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
     const int offset_y = i / num_rois_per_row * roi_size;
 
     auto &rgn = p_blob->rgn[i];
-    const int center_x =
-        scale_x * static_cast<int>(0.5f * (static_cast<float>(rgn.left) +
-                                           static_cast<float>(rgn.right)));
-    const int center_y =
-        scale_y * static_cast<int>(0.5f * (static_cast<float>(rgn.top) +
-                                           static_cast<float>(rgn.bottom)));
+    float rgn_x0 = scale_x * static_cast<float>(rgn.left);
+    float rgn_y0 = scale_y * static_cast<float>(rgn.top);
+    float rgn_x1 = scale_x * static_cast<float>(rgn.right);
+    float rgn_y1 = scale_y * static_cast<float>(rgn.bottom);
+    const int center_x = static_cast<int>(0.5f * (rgn_x0 + rgn_x1));
+    const int center_y = static_cast<int>(0.5f * (rgn_y0 + rgn_y1));
 
     const int w_start = std::max(center_x - roi_size_half, 0);
     const int w_end = std::min(center_x + roi_size_half, imgW);
@@ -299,6 +301,8 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
     const int h_end = std::min(center_y + roi_size_half, imgH);
 
     top_lefts.push_back(std::make_pair(w_start, h_start));
+    blob_xyxy.push_back({rgn_x0, rgn_y0, rgn_x1, rgn_y1});
+
     if (w_start < 0) {
       std::cout << "----------------w_start: " << w_start << std::endl;
     }

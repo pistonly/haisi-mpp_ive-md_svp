@@ -168,7 +168,8 @@ int main(int argc, char *argv[]) {
     auto md_end = std::chrono::high_resolution_clock::now();
     // 合并ROI
     std::vector<std::pair<int, int>> top_lefts;
-    merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f, 2160,
+    std::vector<std::vector<float>> blob_xyxy;  // not used
+    merge_rois(img_high.data(), &blob, merged_roi, top_lefts, blob_xyxy, 8.0f, 8.0f, 2160,
                3840, merged_hw, merged_hw);
     auto merge_end = std::chrono::high_resolution_clock::now();
 

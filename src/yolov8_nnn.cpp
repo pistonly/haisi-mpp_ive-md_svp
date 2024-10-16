@@ -137,7 +137,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
       // filter detection. each DEC assign to one 32x32 patch.
       const int grid_num_x = m_input_w / roi_hw;
       const int grid_num_y = m_input_h / roi_hw;
-      float c_x, c_y, w, h, conf;
+      float c_x, c_y, w, h, conf, x0, y0, x1, y1;
       int grid_x, grid_y;
       std::array<std::array<float, 6>, 400> filted_decs = {0};
       for (auto j = 0; j < det_bbox[i].size(); ++j) {
@@ -161,23 +161,25 @@ void YOLOV8_new::CallbackFunc(void *data) {
 
       for (int k = 0; k < instance_num; ++k) {
         const auto &tl = m_toplefts[k];
+        const auto &blob_xyxy = m_blob_xyxy[k];
         auto &dec = filted_decs[k];
         grid_x = k % grid_num_x;
         grid_y = k / grid_num_x;
         if (dec[4] > 0) {
           c_x = dec[0] - roi_hw * grid_x + tl.first;
           c_y = dec[1] - roi_hw * grid_y + tl.second;
+          x0 = c_x - dec[2] / 2;
+          y0 = c_y - dec[3] / 2;
+          x1 = x0 + dec[2];
+          y1 = y0 + dec[3];
         } else {
-          c_x = static_cast<float>(tl.first);
-          c_y = static_cast<float>(tl.second);
+          x0 = blob_xyxy[0];
+          y0 = blob_xyxy[1];
+          x1 = blob_xyxy[2];
+          y1 = blob_xyxy[3];
           dec[5] = 100;
         }
-        float x0 = c_x - dec[2] / 2;
-        float y0 = c_y - dec[3] / 2;
-        float x1 = x0 + dec[2];
-        float y1 = y0 + dec[3];
         real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
-        // real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
       }
 
       // 获取当前时间点
@@ -281,7 +283,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
       // filter detection. each DEC assign to one 32x32 patch.
       assert(m_input_w / roi_hw == 40);
       assert(m_input_h / roi_hw == 40);
-      float c_x, c_y, w, h, conf;
+      float c_x, c_y, w, h, conf, x0, y0, x1, y1;
       int grid_x, grid_y;
       int grid_group_x, grid_group_y;
       int grid_sub_x, grid_sub_y;
@@ -317,6 +319,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
         const int instance_num = mvv_toplefts4[group_i].size();
         for (int k = 0; k < instance_num; ++k) {
           const auto &tl = mvv_toplefts4[group_i][k];
+          const auto &blob_xyxy = mvv_blob_xyxy4[group_i][k];
           auto &dec = v_filted_decs[group_i][k];
           grid_sub_x = k % 20;
           grid_sub_y = k / 20;
@@ -325,18 +328,19 @@ void YOLOV8_combine::CallbackFunc(void *data) {
           if (dec[4] > 0) {
             c_x = dec[0] - roi_hw * grid_x + tl.first;
             c_y = dec[0] - roi_hw * grid_y + tl.second;
+            x0 = c_x - dec[2] / 2;
+            y0 = c_y - dec[3] / 2;
+            x1 = x0 + dec[2];
+            y1 = y0 + dec[3];
           } else {
-            c_x = static_cast<float>(tl.first);
-            c_y = static_cast<float>(tl.second);
+            x0 = blob_xyxy[0];
+            y0 = blob_xyxy[1];
+            x1 = blob_xyxy[2];
+            y1 = blob_xyxy[3];
             dec[5] = 100;
           }
-          float x0 = c_x - dec[2] / 2;
-          float y0 = c_y - dec[3] / 2;
-          float x1 = x0 + dec[2];
-          float y1 = y0 + dec[3];
           real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
 
-          // real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
         }
       }
     }
@@ -446,7 +450,8 @@ void YOLOV8Sync::post_process(
 
 bool YOLOV8Sync::process_one_image(
     const std::vector<unsigned char> &input_yuv,
-    const std::vector<std::pair<int, int>> &v_toplefts, uint8_t cameraId,
+    const std::vector<std::pair<int, int>> &v_toplefts,
+    const std::vector<std::vector<float>> &v_blob_xyxy, uint8_t cameraId,
     int imageId, uint64_t timestamp) {
 
   mb_yolo_ready = false;
@@ -481,7 +486,7 @@ bool YOLOV8Sync::process_one_image(
   int roi_hw = 32;
   const int grid_num_x = m_input_w / roi_hw;
   const int grid_num_y = m_input_h / roi_hw;
-  float c_x, c_y, w, h, conf;
+  float c_x, c_y, w, h, conf, x0, y0, x1, y1;
   int grid_x, grid_y;
   std::array<std::array<float, 6>, 400> filted_decs = {0};
   std::vector<std::vector<float>> real_decs;
@@ -507,23 +512,25 @@ bool YOLOV8Sync::process_one_image(
     const int instance_num = static_cast<int>(v_toplefts.size());
     for (int k = 0; k < instance_num; ++k) {
       const auto &tl = v_toplefts[k];
+      const auto &blob_xyxy = v_blob_xyxy[k];
       auto &dec = filted_decs[k];
       grid_x = k % grid_num_x;
       grid_y = k / grid_num_x;
       if (dec[4] > 0) {
         c_x = dec[0] - roi_hw * grid_x + tl.first;
         c_y = dec[1] - roi_hw * grid_y + tl.second;
+        x0 = c_x - dec[2] / 2;
+        y0 = c_y - dec[3] / 2;
+        x1 = x0 + dec[2];
+        y1 = y0 + dec[3];
       } else {
-        c_x = static_cast<float>(tl.first);
-        c_y = static_cast<float>(tl.second);
+        x0 = blob_xyxy[0];
+        y0 = blob_xyxy[1];
+        x1 = blob_xyxy[2];
+        y1 = blob_xyxy[3];
         dec[5] = 100;
       }
-      float x0 = c_x - dec[2] / 2;
-      float y0 = c_y - dec[3] / 2;
-      float x1 = x0 + dec[2];
-      float y1 = y0 + dec[3];
       real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
-      // real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
     }
   }
 
@@ -564,6 +571,7 @@ YOLOV8Sync_combine::YOLOV8Sync_combine(const std::string &modelPath,
 bool YOLOV8Sync_combine::process_one_image(
     const std::vector<unsigned char> &input_yuv,
     const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
+    const std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
     uint8_t cameraId, int imageId, uint64_t timestamp) {
 
   mb_yolo_ready = false;
@@ -593,7 +601,7 @@ bool YOLOV8Sync_combine::process_one_image(
   int roi_hw = 32;
   assert(m_input_w / roi_hw == 40);
   assert(m_input_h / roi_hw == 40);
-  float c_x, c_y, w, h, conf;
+  float c_x, c_y, w, h, conf, x0, y0, x1, y1;
   int grid_x, grid_y;
   int grid_group_x, grid_group_y;
   int grid_sub_x, grid_sub_y;
@@ -629,6 +637,7 @@ bool YOLOV8Sync_combine::process_one_image(
       const int instance_num = static_cast<int>(vv_toplefts4[group_i].size());
       for (int k = 0; k < instance_num; ++k) {
         const auto &tl = vv_toplefts4[group_i][k];
+        const auto &blob_xyxy = vv_blob_xyxy4[group_i][k];
         auto &dec = v_filted_decs[group_i][k];
         grid_sub_x = k % 20;
         grid_sub_y = k / 20;
@@ -637,18 +646,18 @@ bool YOLOV8Sync_combine::process_one_image(
         if (dec[4] > 0) {
           c_x = dec[0] - roi_hw * grid_x + tl.first;
           c_y = dec[1] - roi_hw * grid_y + tl.second;
+          x0 = c_x - dec[2] / 2;
+          y0 = c_y - dec[3] / 2;
+          x1 = x0 + dec[2];
+          y1 = y0 + dec[3];
         } else {
-          c_x = static_cast<float>(tl.first);
-          c_y = static_cast<float>(tl.second);
+          x0 = blob_xyxy[0];
+          y0 = blob_xyxy[1];
+          x1 = blob_xyxy[2];
+          y1 = blob_xyxy[3];
           dec[5] = 100;
         }
-        float x0 = c_x - dec[2] / 2;
-        float y0 = c_y - dec[3] / 2;
-        float x1 = x0 + dec[2];
-        float y1 = y0 + dec[3];
         real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
-
-        // real_decs.push_back({c_x, c_y, dec[2], dec[3], dec[4], dec[5]});
       }
     }
   }

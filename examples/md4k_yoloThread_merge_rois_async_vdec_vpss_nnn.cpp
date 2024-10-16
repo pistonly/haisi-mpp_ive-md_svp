@@ -40,9 +40,10 @@ void signal_handler(int signum) { running = false; }
 void processInThread(
     uint8_t cameraId, std::vector<unsigned char> &merged_roi_combined,
     std::vector<std::vector<std::pair<int, int>>> &vv_top_lefts4,
+    std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
     YOLOV8Sync_combine &yolov8, int frame_id, int64_t pts) {
-  yolov8.process_one_image(merged_roi_combined, vv_top_lefts4, cameraId,
-                           frame_id, pts);
+  yolov8.process_one_image(merged_roi_combined, vv_top_lefts4, vv_blob_xyxy4,
+                           cameraId, frame_id, pts);
 }
 
 int main(int argc, char *argv[]) {
@@ -85,8 +86,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url",   "om_path", "tcp_ip",      "tcp_port",
-      "output_dir", "roi_hw",  "save_result", "save_csv", "decode_step_mode"};
+      "rtsp_url", "om_path",     "tcp_ip",   "tcp_port",        "output_dir",
+      "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -153,6 +154,7 @@ int main(int argc, char *argv[]) {
 
   auto start_time = std::chrono::high_resolution_clock::now();
   std::vector<std::vector<std::pair<int, int>>> vv_top_lefts4(4);
+  std::vector<std::vector<std::vector<float>>> vv_blob_xyxy4(4);
   while (running && !decoder.is_ffmpeg_exit()) {
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
@@ -188,15 +190,23 @@ int main(int argc, char *argv[]) {
       Timer timer("merge");
       for (int i = 0; i < 4; ++i) {
         std::vector<std::pair<int, int>> top_lefts_i;
+        std::vector<std::vector<float>> blob_xyxy_i;
         merge_rois(img4[i].data(), &blob4[i], v_merged_roi4[i], top_lefts_i,
-                   4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
+                   blob_xyxy_i, 4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw);
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
         for (auto &tl : top_lefts_i) {
           tl.first = tl.first + top_lefts_offset_x_i;
           tl.second = tl.second + top_lefts_offset_y_i;
         }
+        for (auto &xyxy: blob_xyxy_i){
+          xyxy[0] += top_lefts_offset_x_i;
+          xyxy[1] += top_lefts_offset_y_i;
+          xyxy[2] += top_lefts_offset_x_i;
+          xyxy[3] += top_lefts_offset_y_i;
+        }
         vv_top_lefts4[i] = std::move(top_lefts_i);
+        vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
       }
       // merge to 4k
       combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
@@ -213,8 +223,8 @@ int main(int argc, char *argv[]) {
       // 创建新线程
       std::thread asyncTask(processInThread, cameraId,
                             std::ref(merged_roi_combined),
-                            std::ref(vv_top_lefts4), std::ref(yolov8), frame_id,
-                            timestamp);
+                            std::ref(vv_top_lefts4), std::ref(vv_blob_xyxy4),
+                            std::ref(yolov8), frame_id, timestamp);
       asyncTask.detach();
     }
 

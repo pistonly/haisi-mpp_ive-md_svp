@@ -3,12 +3,12 @@
 #include "nnn_yolov8.hpp"
 #include "nnn_yolov8_callback.hpp"
 #include "post_process_tools.hpp"
+#include "tcp_tools.hpp"
+#include "utils.hpp"
 #include <cstdint>
 #include <half.hpp>
 #include <string>
 #include <vector>
-#include "tcp_tools.hpp"
-#include "utils.hpp"
 
 using half_float::half;
 
@@ -23,6 +23,7 @@ public:
 
   std::string m_output_dir;
   std::vector<std::pair<int, int>> m_toplefts;
+  std::vector<std::vector<float>> m_blob_xyxy;
   std::vector<std::vector<char>> m_outputs;
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId;
@@ -42,9 +43,8 @@ public:
   // mvp_cls shape: batch x branch_num x anchors
   std::vector<std::vector<const half *>> mvp_cls;
 
-
   void CallbackFunc(void *data) override;
-  void update_imageId(int imageId, uint64_t time_stamp, uint8_t cameraId=0);
+  void update_imageId(int imageId, uint64_t time_stamp, uint8_t cameraId = 0);
 };
 
 /*
@@ -58,6 +58,8 @@ public:
 
   std::string m_output_dir;
   std::vector<std::vector<std::pair<int, int>>> mvv_toplefts4;
+  std::vector<std::vector<std::vector<float>>> mvv_blob_xyxy4;
+
   std::vector<std::vector<char>> m_outputs;
   std::vector<std::vector<size_t>> mv_outputs_dim;
   int m_imageId;
@@ -78,22 +80,19 @@ public:
   // mvp_cls shape: batch x branch_num x anchors
   std::vector<std::vector<const half *>> mvp_cls;
 
-
   void CallbackFunc(void *data) override;
-  void update_imageId(int id, uint64_t timestamp, uint8_t cameraId=0) {
+  void update_imageId(int id, uint64_t timestamp, uint8_t cameraId = 0) {
     m_cameraId = cameraId;
     m_imageId = id;
     m_timestamp = timestamp;
   }
 };
 
-
 class YOLOV8Sync : public NNNYOLOV8, public TCP {
 public:
-  YOLOV8Sync(const std::string &modelPath,
-                     const std::string &output_dir = "./",
-                     const std::string &aclJSON = "");
-  ~YOLOV8Sync(){
+  YOLOV8Sync(const std::string &modelPath, const std::string &output_dir = "./",
+             const std::string &aclJSON = "");
+  ~YOLOV8Sync() {
     logger.log(INFO, "\n---------------------------\n",
                "averaged infer time: ", m_infer_total_time / m_processed_num,
                "ms\n", "---------------------------\n");
@@ -119,10 +118,10 @@ public:
   void post_process(std::vector<std::vector<std::vector<half>>> &det_bbox,
                     std::vector<std::vector<half>> &det_conf,
                     std::vector<std::vector<half>> &det_cls);
-  bool process_one_image(
-      const std::vector<unsigned char> &input_yuv,
-      const std::vector<std::pair<int, int>> &v_toplefts,
-      uint8_t cameraId, int imageId, uint64_t timestamp);
+  bool process_one_image(const std::vector<unsigned char> &input_yuv,
+                         const std::vector<std::pair<int, int>> &v_toplefts,
+                         const std::vector<std::vector<float>> &v_blob_xyxy,
+                         uint8_t cameraId, int imageId, uint64_t timestamp);
 
   void set_postprocess_parameters(float conf_thres, float iou_thres,
                                   int max_det);
@@ -141,6 +140,7 @@ public:
   bool process_one_image(
       const std::vector<unsigned char> &input_yuv,
       const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
+      const std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
       uint8_t cameraId, int imageId, uint64_t timestamp);
 };
 

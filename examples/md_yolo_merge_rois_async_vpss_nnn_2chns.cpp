@@ -200,9 +200,10 @@ int main(int argc, char *argv[]) {
 
       // 合并ROI
       std::vector<std::pair<int, int>> top_lefts;
+      std::vector<std::vector<float>> blob_xyxy;
       {
         Timer merge_timer("Merge ROI for Channel 0");
-        merge_rois(img_high.data(), &blob, merged_roi, top_lefts, 8.0f, 8.0f,
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts, blob_xyxy, 8.0f, 8.0f,
                    2160, 3840, merged_hw, merged_hw);
       }
 
@@ -214,6 +215,7 @@ int main(int argc, char *argv[]) {
           return 1;
         }
         yolov8.m_toplefts = std::move(top_lefts);
+        yolov8.m_blob_xyxy = std::move(blob_xyxy);
         uint8_t cameraId_tmp = cameraId;
         yolov8.update_imageId(frame_id, v_frame_chns[1].video_frame.pts / 1000,
                               cameraId_tmp);
@@ -241,9 +243,10 @@ int main(int argc, char *argv[]) {
 
       // 合并ROI
       std::vector<std::pair<int, int>> top_lefts_1;
+      std::vector<std::vector<float>> blob_xyxy_1;
       {
         Timer merge_timer("Merge ROI for Channel 1");
-        merge_rois(img_high.data(), &blob, merged_roi, top_lefts_1, 8.0f, 8.0f,
+        merge_rois(img_high.data(), &blob, merged_roi, top_lefts_1, blob_xyxy_1, 8.0f, 8.0f,
                    2160, 3840, merged_hw, merged_hw);
       }
 
@@ -255,6 +258,7 @@ int main(int argc, char *argv[]) {
           return 1;
         }
         yolov8.m_toplefts = std::move(top_lefts_1);
+        yolov8.m_blob_xyxy = std::move(blob_xyxy_1);
         uint8_t cameraId_tmp = cameraId + 100;
         yolov8.update_imageId(frame_id, v_frame_chns[3].video_frame.pts,
                               cameraId_tmp);
