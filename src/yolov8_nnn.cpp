@@ -158,7 +158,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
           y1 = blob_xyxy[3];
           dec[5] = 100;
         }
-        real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
+        real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }
 
       // 获取当前时间点
@@ -314,7 +314,7 @@ void YOLOV8_combine::CallbackFunc(void *data) {
             y1 = blob_xyxy[3];
             dec[5] = 100;
           }
-          real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
+          real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
         }
       }
     }
@@ -500,7 +500,7 @@ bool YOLOV8Sync::process_one_image(
         y1 = blob_xyxy[3];
         dec[5] = 100;
       }
-      real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
+      real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
     }
   }
 
@@ -623,7 +623,7 @@ bool YOLOV8Sync_combine::process_one_image(
           y1 = blob_xyxy[3];
           dec[5] = 100;
         }
-        real_decs.push_back({x0, y0, x1, y1, dec[4], dec[5]});
+        real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }
     }
   }
