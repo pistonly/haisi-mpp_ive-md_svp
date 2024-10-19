@@ -76,12 +76,12 @@ bool process_frames(std::vector<ot_video_frame_info> &v_frames,
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
 void processInThread(
-    uint8_t cameraId, std::vector<unsigned char> &merged_roi_combined,
+    uint8_t cameraId, std::vector<std::vector<unsigned char>> &v_merged_roi4,
     std::vector<std::vector<std::pair<int, int>>> &vv_top_lefts4,
     std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
     YOLOV8Sync_combine &yolov8, int frame_id, int64_t pts) {
-  yolov8.process_one_image(merged_roi_combined, vv_top_lefts4, vv_blob_xyxy4,
-                           cameraId, frame_id, pts);
+  yolov8.process_one_image_batched(v_merged_roi4, vv_top_lefts4, vv_blob_xyxy4,
+                                   cameraId, frame_id, pts);
 }
 
 int main(int argc, char *argv[]) {
@@ -149,7 +149,6 @@ int main(int argc, char *argv[]) {
   // Pre-allocate buffers outside the loop
   std::vector<std::vector<unsigned char>> v_merged_roi4(
       4, std::vector<unsigned char>(merged_size));
-  std::vector<unsigned char> merged_roi_combined(merged_size * 4, 0);
 
   std::vector<ot_ive_ccblob> blob4_camera0(4, {0});
   std::vector<ot_ive_ccblob> blob4_camera1(4, {0});
@@ -238,6 +237,7 @@ int main(int argc, char *argv[]) {
     }
 
     // 合并ROI
+    yolov8.mb_yolo_ready = false;
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
 
@@ -267,12 +267,6 @@ int main(int argc, char *argv[]) {
         vv_top_lefts4[i] = std::move(top_lefts_i);
         vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
       }
-      // merge to 4k
-      combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
-                       merged_roi_combined);
-      // // debug
-      // // save merged_roi
-      // save_merged_rois(merged_roi_combined, output_dir, frame_id);
     }
 
     // 输入到NPU, 推理改为异步执行
@@ -289,9 +283,9 @@ int main(int argc, char *argv[]) {
       }
       // 创建新线程
       std::thread asyncTask(processInThread, cameraId_tmp,
-                            std::ref(merged_roi_combined),
-                            std::ref(vv_top_lefts4), std::ref(vv_blob_xyxy4),
-                            std::ref(yolov8), frame_id, timestamp);
+                            std::ref(v_merged_roi4), std::ref(vv_top_lefts4),
+                            std::ref(vv_blob_xyxy4), std::ref(yolov8), frame_id,
+                            timestamp);
       asyncTask.detach();
 
       // switch yolo camera

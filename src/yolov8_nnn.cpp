@@ -551,12 +551,14 @@ bool YOLOV8Sync_combine::process_one_image(
     Host2Device(input_yuv.data(), input_yuv.size());
   }
 
+  std::cout << "before inference" << std::endl;
   // inference
   {
     Timer timer("yolov8 inferencing ...");
     Execute();
   }
 
+  std::cout << "before PP" << std::endl;
   // postprocess
   {
     Timer timer("yolov8 postprocessing ...");
@@ -609,6 +611,117 @@ bool YOLOV8Sync_combine::process_one_image(
         grid_sub_y = k / 20;
         grid_x = grid_group_x * 20 + grid_sub_x;
         grid_y = grid_group_y * 20 + grid_sub_y;
+        if (dec[4] > 0) {
+          c_x = dec[0] - roi_hw * grid_x + tl.first;
+          c_y = dec[1] - roi_hw * grid_y + tl.second;
+          x0 = c_x - dec[2] / 2;
+          y0 = c_y - dec[3] / 2;
+          x1 = x0 + dec[2];
+          y1 = y0 + dec[3];
+        } else {
+          x0 = blob_xyxy[0];
+          y0 = blob_xyxy[1];
+          x1 = blob_xyxy[2];
+          y1 = blob_xyxy[3];
+          dec[5] = 100;
+        }
+        real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
+      }
+    }
+  }
+
+  // 获取当前时间点
+  auto currentTime = std::chrono::steady_clock::now();
+  static auto lastTime = std::chrono::steady_clock::now();
+  // 计算时间间隔
+  std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
+
+  if (elapsedSeconds.count() > m_save_interval) {
+    // 执行函数体
+    connect_to_tcp(m_tcp_ip, m_tcp_port);
+    send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                      real_decs, cameraId, imageId, timestamp, m_output_dir);
+    if (mb_sock_connected) {
+      close(m_sock);
+      mb_sock_connected = false;
+    }
+
+    // 更新 lastTime 为当前时间
+    lastTime = currentTime;
+  }
+
+  mb_yolo_ready = true;
+  return true;
+}
+
+bool YOLOV8Sync_combine::process_one_image_batched(
+    const std::vector<std::vector<unsigned char>> &v_input_yuv4,
+    const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
+    const std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
+    uint8_t cameraId, int imageId, uint64_t timestamp) {
+
+  mb_yolo_ready = false;
+
+  assert(v_input_yuv4.size() == 4);
+  assert(vv_toplefts4.size() == 4);
+  assert(vv_blob_xyxy4.size() == 4);
+
+  std::vector<std::vector<float>> real_decs;
+  for (int batch_i = 0; batch_i < 4; ++batch_i) {
+    std::vector<std::vector<std::vector<half>>> det_bbox;
+    std::vector<std::vector<half>> det_conf;
+    std::vector<std::vector<half>> det_cls;
+    // host to device
+    {
+      Timer timer("yolov8 H2D ...");
+      Host2Device(v_input_yuv4[batch_i].data(), v_input_yuv4[batch_i].size());
+    }
+    // inference
+    {
+      Timer timer("yolov8 inferencing ...");
+      Execute();
+    }
+    // postprocess
+    {
+      Timer timer("yolov8 postprocessing ...");
+      post_process(det_bbox, det_conf, det_cls);
+    }
+
+    // filter detections. each DEC assign to one 32x32 patch
+    int roi_hw = 32;
+    const int grid_num_x = m_input_w / roi_hw;
+    const int grid_num_y = m_input_h / roi_hw;
+    float c_x, c_y, w, h, conf, x0, y0, x1, y1;
+    int grid_x, grid_y;
+
+    std::array<std::array<float, 6>, 400> filted_decs = {0};
+
+    for (int i = 0; i < det_bbox.size(); ++i) {
+      for (auto j = 0; j < det_bbox[i].size(); ++j) {
+        const std::vector<half> &box = det_bbox[i][j];
+        c_x = 0.5f * (box[0] + box[2]);
+        c_y = 0.5f * (box[1] + box[3]);
+        conf = det_conf[i][j];
+        grid_x = static_cast<int>(c_x / roi_hw);
+        grid_y = static_cast<int>(c_y / roi_hw);
+
+        const int filted_id = grid_y * grid_num_x + grid_x;
+        const float &current_best_conf = filted_decs[filted_id][4];
+        if (filted_id < 100 && conf > current_best_conf) {
+          float w = box[2] - box[0];
+          float h = box[3] - box[1];
+          filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
+        }
+      }
+
+      // change to real location
+      const int instance_num = static_cast<int>(vv_toplefts4[batch_i].size());
+      for (int k = 0; k < instance_num; ++k) {
+        const auto &tl = vv_toplefts4[batch_i][k];
+        const auto &blob_xyxy = vv_blob_xyxy4[batch_i][k];
+        auto &dec = filted_decs[k];
+        grid_x = k % grid_num_x;
+        grid_y = k / grid_num_x;
         if (dec[4] > 0) {
           c_x = dec[0] - roi_hw * grid_x + tl.first;
           c_y = dec[1] - roi_hw * grid_y + tl.second;

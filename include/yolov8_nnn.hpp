@@ -157,6 +157,12 @@ public:
       const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
       const std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
       uint8_t cameraId, int imageId, uint64_t timestamp);
+
+  bool process_one_image_batched(
+      const std::vector<std::vector<unsigned char>> &v_input_yuv4,
+      const std::vector<std::vector<std::pair<int, int>>> &vv_toplefts4,
+      const std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
+      uint8_t cameraId, int imageId, uint64_t timestamp);
 };
 
 #endif
