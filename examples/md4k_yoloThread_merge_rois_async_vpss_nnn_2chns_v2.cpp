@@ -160,8 +160,14 @@ int main(int argc, char *argv[]) {
   // initialize md
   // NOTE: md should initialized before SVPNNN
   bool b_sys_init = false;
-  std::vector<IVE_MD> v_md4_camera0(4, IVE_MD(b_sys_init));
-  std::vector<IVE_MD> v_md4_camera1(4, IVE_MD(b_sys_init));
+  std::vector<IVE_MD> v_md4_camera0;
+  std::vector<IVE_MD> v_md4_camera1;
+  v_md4_camera0.reserve(4);
+  v_md4_camera1.reserve(4);
+  for (int i = 0; i < 4; ++i) {
+    v_md4_camera0.emplace_back(b_sys_init);
+    v_md4_camera1.emplace_back(b_sys_init);
+  }
 
   // 初始化NPU
   YOLOV8Sync_combine yolov8(omPath, output_dir);
@@ -221,7 +227,7 @@ int main(int argc, char *argv[]) {
       {
         Timer timer("md camera0 ...");
         for (int i = 0; i < 4; ++i) {
-          v_md4_camera0[i].process(img4_camera0[i].data(), &blob4_camera0[i]);
+          v_md4_camera0.at(i).process(img4_camera0.at(i).data(), &blob4_camera0.at(i));
           logger.log(DEBUG, "camera-0 instance number: ",
                      static_cast<int>(blob4_camera0[i].info.bits.rgn_num));
         }
@@ -237,7 +243,7 @@ int main(int argc, char *argv[]) {
     }
 
     // 合并ROI
-    yolov8.mb_yolo_ready = false;
+    // yolov8.mb_yolo_ready = false;
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
 
@@ -263,6 +269,12 @@ int main(int argc, char *argv[]) {
         for (auto &tl : top_lefts_i) {
           tl.first = tl.first + top_lefts_offset_x_i;
           tl.second = tl.second + top_lefts_offset_y_i;
+        }
+        for (auto &xyxy : blob_xyxy_i) {
+          xyxy[0] += top_lefts_offset_x_i;
+          xyxy[1] += top_lefts_offset_y_i;
+          xyxy[2] += top_lefts_offset_x_i;
+          xyxy[3] += top_lefts_offset_y_i;
         }
         vv_top_lefts4[i] = std::move(top_lefts_i);
         vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
@@ -292,6 +304,11 @@ int main(int argc, char *argv[]) {
       b_yolo_on_camera0 = !b_yolo_on_camera0;
     }
 
+    // 释放帧
+    {
+      Timer timer("Release Frames");
+      process_frames(v_frame_chns, true);
+    }
     frame_id++;
   }
 

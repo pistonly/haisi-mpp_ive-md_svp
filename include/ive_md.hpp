@@ -21,6 +21,10 @@ class IVE_MD {
 public:
   IVE_MD(bool sys_init=true);
   ~IVE_MD();
+  IVE_MD(const IVE_MD&) = delete;
+  IVE_MD &operator=(const IVE_MD &) = delete;
+  IVE_MD(IVE_MD &&) = default;
+  IVE_MD& operator=(IVE_MD&&) = default;
   int process(const unsigned char* p_image, ot_ive_ccblob *blob);
   int process(ot_video_frame_info &frame, ot_ive_ccblob *blob);
   int process(ot_video_frame_info *frame, ot_ive_ccblob *blob);

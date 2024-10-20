@@ -76,7 +76,7 @@ IVE_MD::IVE_MD(bool sys_init) {
 
   m_sub_ctrl.mode = OT_IVE_SUB_MODE_ABS;
   m_thre_ctrl.mode = OT_IVE_THRESHOLD_MODE_BINARY;
-  m_thre_ctrl.low_threshold = 15;
+  m_thre_ctrl.low_threshold = 10;
   m_thre_ctrl.min_val = 0;
   m_thre_ctrl.max_val = 255;
 

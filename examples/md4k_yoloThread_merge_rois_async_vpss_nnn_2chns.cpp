@@ -161,8 +161,14 @@ int main(int argc, char *argv[]) {
   // initialize md
   // NOTE: md should initialized before SVPNNN
   bool b_sys_init = false;
-  std::vector<IVE_MD> v_md4_camera0(4, IVE_MD(b_sys_init));
-  std::vector<IVE_MD> v_md4_camera1(4, IVE_MD(b_sys_init));
+  std::vector<IVE_MD> v_md4_camera0;
+  std::vector<IVE_MD> v_md4_camera1;
+  v_md4_camera0.reserve(4);
+  v_md4_camera1.reserve(4);
+  for (int i = 0; i < 4; ++i) {
+    v_md4_camera0.emplace_back(b_sys_init);
+    v_md4_camera1.emplace_back(b_sys_init);
+  }
 
   // 初始化NPU
   YOLOV8Sync_combine yolov8(omPath, output_dir);

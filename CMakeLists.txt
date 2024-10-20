@@ -279,7 +279,6 @@ target_link_libraries(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns_v2
   stdc++ # note this line is important
 )
 
-
 target_link_libraries(md4k_yolo_merge_rois_async_vdec_vpss_nnn
   ive_md
   ascendcl

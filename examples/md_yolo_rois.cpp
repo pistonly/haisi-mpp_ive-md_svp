@@ -40,7 +40,7 @@ int main() {
 
   std::cout << "Absolute path: " << absolute_path << std::endl;
 
-  IVE_MD md = IVE_MD();
+  IVE_MD md;
 
   // process
   std::ifstream inputFile(absolute_path, std::ios::binary);
