@@ -41,6 +41,7 @@ public:
 
     if (connect(m_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
       logger.log(ERROR, "Connection Failed.");
+      close(m_sock);
       return;
     }
 
