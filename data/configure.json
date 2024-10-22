@@ -1,14 +1,14 @@
 {
     "rtsp_url": "rtsp://172.23.24.52:8554/test",
-    "om_path": "/home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/yolov8n_air-little-obj_32-roi_640x640_FP16.om",
+    "om_path": "/home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/best_640x640_FP16.om",
     "tcp_ip": "172.23.24.52",
     "tcp_port": "12321",
     "output_dir": "/mnt/data/tmp/",
     "roi_hw": 32,
     "save_result": false,
     "save_csv": true,
-    "save_interval": 1,
+    "save_interval": 0.01,
     "decode_step_mode": true,
-    "conf_thres": 0.1,
+    "conf_thres": 0.01,
     "log_level": "INFO"
 }

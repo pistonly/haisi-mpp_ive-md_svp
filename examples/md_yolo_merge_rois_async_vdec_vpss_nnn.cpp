@@ -199,7 +199,11 @@ int main(int argc, char *argv[]) {
       Timer timer("yolov8");
       yolov8.m_toplefts = std::move(top_lefts);
       yolov8.m_blob_xyxy = std::move(blob_xyxy);
-      yolov8.update_imageId(frame_id++, decoder.frame_H.video_frame.pts / 1000, cameraId);
+      // get timestamp
+      auto now = std::chrono::system_clock::now();
+      auto duration = now.time_since_epoch();
+      auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+      yolov8.update_imageId(frame_id++, millis, cameraId);
       yolov8.Host2Device(reinterpret_cast<char *>(merged_roi.data()),
                          merged_size);
       yolov8.ExecuteRPN_Async();
@@ -212,4 +216,3 @@ int main(int argc, char *argv[]) {
   }
   return 0;
 }
-

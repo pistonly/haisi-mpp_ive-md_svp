@@ -23,8 +23,15 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
                        const std::string &output_dir) {
   if (real_decs.size() > 0) {
     std::stringstream ss;
+
+    // get timestamp
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis =
+        std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
     ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
-       << std::setw(6) << std::setfill('0') << imageId << "_" << timestamp;
+       << std::setw(6) << std::setfill('0') << imageId << "_" << millis;
     if (sock_connected) {
       send_dection_results(sock, real_decs, cameraId, timestamp);
     }
