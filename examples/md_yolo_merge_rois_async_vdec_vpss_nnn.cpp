@@ -144,6 +144,15 @@ int main(int argc, char *argv[]) {
 
   auto start_time = std::chrono::high_resolution_clock::now();
   while (running && !decoder.is_ffmpeg_exit()) {
+    if (frame_id == 0) {
+      // get timestamp
+      auto now = std::chrono::system_clock::now();
+      auto duration = now.time_since_epoch();
+      auto millis =
+          std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+              .count();
+      std::cout << "start_time: " << millis << std::endl;
+    }
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
       auto duration =

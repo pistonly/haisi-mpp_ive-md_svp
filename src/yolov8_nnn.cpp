@@ -32,9 +32,9 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
 
     ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
        << std::setw(6) << std::setfill('0') << imageId << "_" << millis;
-    if (sock_connected) {
-      send_dection_results(sock, real_decs, cameraId, timestamp);
-    }
+    // if (sock_connected) {
+    //   send_dection_results(sock, real_decs, cameraId, timestamp);
+    // }
     if (save_bin) {
       save_detect_results(real_decs, cameraId, timestamp, output_dir,
                           ss.str() + ".bin");
@@ -176,7 +176,7 @@ void YOLOV8_new::CallbackFunc(void *data) {
 
       if (elapsedSeconds.count() > m_save_interval) {
         // 执行函数体
-        connect_to_tcp(m_tcp_ip, m_tcp_port);
+        // connect_to_tcp(m_tcp_ip, m_tcp_port);
         send_save_results(mb_sock_connected, mb_save_results, mb_save_csv,
                           m_sock, real_decs, m_cameraId, m_imageId, m_timestamp,
                           m_output_dir);
