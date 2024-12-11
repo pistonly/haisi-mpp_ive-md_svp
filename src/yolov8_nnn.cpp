@@ -631,6 +631,8 @@ bool YOLOV8Sync_combine::process_one_image(
           x1 = blob_xyxy[2];
           y1 = blob_xyxy[3];
           dec[5] = 100;
+          // do not send md results
+          continue;
         }
         real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }
@@ -648,10 +650,10 @@ bool YOLOV8Sync_combine::process_one_image(
     connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
-    if (mb_sock_connected) {
-      close(m_sock);
-      mb_sock_connected = false;
-    }
+    // if (mb_sock_connected) {
+    //   close(m_sock);
+    //   mb_sock_connected = false;
+    // }
 
     // 更新 lastTime 为当前时间
     lastTime = currentTime;
@@ -742,6 +744,8 @@ bool YOLOV8Sync_combine::process_one_image_batched(
           x1 = blob_xyxy[2];
           y1 = blob_xyxy[3];
           dec[5] = 100;
+          // do not send md results
+          continue;
         }
         real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }
@@ -759,10 +763,10 @@ bool YOLOV8Sync_combine::process_one_image_batched(
     connect_to_tcp(m_tcp_ip, m_tcp_port);
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
-    if (mb_sock_connected) {
-      close(m_sock);
-      mb_sock_connected = false;
-    }
+    // if (mb_sock_connected) {
+    //   close(m_sock);
+    //   mb_sock_connected = false;
+    // }
 
     // 更新 lastTime 为当前时间
     lastTime = currentTime;

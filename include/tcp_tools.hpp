@@ -23,6 +23,9 @@ public:
   bool mb_sock_connected;
 
   void connect_to_tcp(const std::string &ip, const int port) {
+    if (mb_sock_connected) {
+      return;
+    }
     m_sock = 0;
     struct sockaddr_in serv_addr;
 
