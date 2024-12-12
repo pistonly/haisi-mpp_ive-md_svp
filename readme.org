@@ -22,11 +22,21 @@ input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
  - step-3: run
   #+begin_src bash
     cd /home/liuyang/Documents/haisi/mpp_ive-md_svp/out
-    ./
+    ./md4k_yoloThread_merge_rois_async_vdec_vpss_nnn
   #+end_src
- 
- 
- 
+ - step-4: copy results
+   #+begin_src bash
+     cd /mnt/data/
+     mv tmp /home/liuyang/Documents/tmp/tmp-1 
+   #+end_src
+ - step-5: draw results
+  #+begin_src bash
+    # on pc
+    cd /home/liuyang/Documents/haisi/mpp_ive-md_svp/tools/
+    # change result path to: /home/liuyang/Documents/tmp/tmp-1
+    python draw_rect_from_csv_data.py
+  #+end_src
+  
 * log
 #+begin_example
 /home/liuyang/Documents/haisi/mpp_ive-md_svp/out # ./md_yolo_merged_roi_async_vdec_vpss_nnn

@@ -268,14 +268,14 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
                 std::vector<std::pair<int, int>> &top_lefts,
                 std::vector<std::vector<float>> &blob_xyxy, float scale_x,
                 float scale_y, int imgH, int imgW, int merged_roi_H,
-                int merged_roi_W) {
+                int merged_roi_W, int max_roi_num) {
   top_lefts.clear();
   blob_xyxy.clear();
   // img and merged_rois are YUV format images.
   const int roi_size = 32;
   const int roi_size_half = roi_size / 2;
   const int rgn_num =
-      std::min(static_cast<int>(p_blob->info.bits.rgn_num), 200);
+      std::min(static_cast<int>(p_blob->info.bits.rgn_num), max_roi_num);
   const int num_rois_per_row = merged_roi_W / roi_size;
 
   const int Y_size = merged_roi_H * merged_roi_W;

@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
   bool b_with_md_results = config_data["with_md_result"];
   bool b_save_csv = config_data["save_csv"];
   bool decode_step_mode = config_data["decode_step_mode"];
+  const int max_roi_num = config_data["max_roi_num"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
   const int merged_hw = roi_hw * 20;
@@ -246,7 +247,7 @@ int main(int argc, char *argv[]) {
         std::vector<std::vector<float>> blob_xyxy_i;
         merge_rois((*p_img4)[i].data(), &((*p_blob4)[i]), v_merged_roi4[i],
                    top_lefts_i, blob_xyxy_i, 4.0f, 4.0f, 1080, 1920, merged_hw,
-                   merged_hw);
+                   merged_hw, max_roi_num);
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
         for (auto &tl : top_lefts_i) {
