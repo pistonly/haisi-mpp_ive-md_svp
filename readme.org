@@ -8,7 +8,25 @@ input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
 
 
 * usage
-
+ - step-1: start rtsp
+  #+begin_src bash
+    cd /home/liuyang/Documents/rtsp_server/
+    python rtsp-server-h265.py /home/liuyang/datasets/yanshou_video/202410191444_8.hevc
+  #+end_src
+ - step-2: on ss928v100, mount nfs
+  #+begin_src bash
+    telnet 172.23.24.121
+    cd /root/liuyang/
+    sh mount_nfs.sh
+  #+end_src
+ - step-3: run
+  #+begin_src bash
+    cd /home/liuyang/Documents/haisi/mpp_ive-md_svp/out
+    ./
+  #+end_src
+ 
+ 
+ 
 * log
 #+begin_example
 /home/liuyang/Documents/haisi/mpp_ive-md_svp/out # ./md_yolo_merged_roi_async_vdec_vpss_nnn

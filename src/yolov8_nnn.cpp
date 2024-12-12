@@ -624,13 +624,15 @@ bool YOLOV8Sync_combine::process_one_image(
           x1 = x0 + dec[2];
           y1 = y0 + dec[3];
         } else {
+          if (!mb_with_md_results) {
+            // do not send md results
+            continue;
+          }
           x0 = blob_xyxy[0];
           y0 = blob_xyxy[1];
           x1 = blob_xyxy[2];
           y1 = blob_xyxy[3];
           dec[5] = 100;
-          // do not send md results
-          continue;
         }
         real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }
@@ -739,13 +741,15 @@ bool YOLOV8Sync_combine::process_one_image_batched(
           x1 = x0 + dec[2];
           y1 = y0 + dec[3];
         } else {
+          if (!mb_with_md_results) {
+            continue;
+          }
           x0 = blob_xyxy[0];
           y0 = blob_xyxy[1];
           x1 = blob_xyxy[2];
           y1 = blob_xyxy[3];
           dec[5] = 100;
           // do not send md results
-          continue;
         }
         real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
       }

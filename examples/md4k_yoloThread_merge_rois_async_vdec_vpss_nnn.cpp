@@ -38,11 +38,13 @@ void signal_handler(int signum) { running = false; }
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
 void processInThread(
-    uint8_t cameraId, std::vector<unsigned char> &merged_roi_combined,
+    uint8_t cameraId,
+    std::vector<std::vector<unsigned char>>
+        &v_merged_roi4,
     std::vector<std::vector<std::pair<int, int>>> &vv_top_lefts4,
     std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
     YOLOV8Sync_combine &yolov8, int frame_id, int64_t pts) {
-  yolov8.process_one_image(merged_roi_combined, vv_top_lefts4, vv_blob_xyxy4,
+  yolov8.process_one_image_batched(v_merged_roi4, vv_top_lefts4, vv_blob_xyxy4,
                            cameraId, frame_id, pts);
 }
 
@@ -103,6 +105,7 @@ int main(int argc, char *argv[]) {
   const int roi_hw = config_data["roi_hw"];
   bool b_save_result = config_data["save_result"];
   bool b_save_csv = config_data["save_csv"];
+  bool b_with_md_results = config_data["with_md_result"];
   bool decode_step_mode = config_data["decode_step_mode"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
@@ -136,6 +139,7 @@ int main(int argc, char *argv[]) {
   yolov8.m_tcp_ip = tcp_ip;
   yolov8.m_tcp_port = std::stoi(tcp_port);
   yolov8.mb_tcp_send = false;
+  yolov8.mb_with_md_results = true;
 
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
@@ -211,9 +215,9 @@ int main(int argc, char *argv[]) {
         vv_top_lefts4[i] = std::move(top_lefts_i);
         vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
       }
-      // merge to 4k
-      combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
-                       merged_roi_combined);
+      // // merge to 4k
+      // combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
+      //                  merged_roi_combined);
       // // debug
       // // save merged_roi
       // save_merged_rois(merged_roi_combined, output_dir, frame_id);
@@ -225,7 +229,7 @@ int main(int argc, char *argv[]) {
       uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
       // 创建新线程
       std::thread asyncTask(processInThread, cameraId,
-                            std::ref(merged_roi_combined),
+                            std::ref(v_merged_roi4),
                             std::ref(vv_top_lefts4), std::ref(vv_blob_xyxy4),
                             std::ref(yolov8), frame_id, timestamp);
       asyncTask.detach();

@@ -49,8 +49,7 @@ bool handle_error(const char *action, int vpss_grp, int vpss_chn, int ret) {
 bool process_frames(std::vector<ot_video_frame_info> &v_frames,
                     bool release = false) {
   // only one chn: chn-1: {0, 0}, {0, 1}; chn-2: {2, 2}, {2, 3}
-  std::vector<std::pair<td_s32, td_s32>> grp_chns{
-      {0, 0}, {0, 1}};
+  std::vector<std::pair<td_s32, td_s32>> grp_chns{{0, 0}, {0, 1}};
 
   if (grp_chns.size() > v_frames.size()) {
     logger.log(ERROR, "Frame number should not be less than grp_chn pairs");
@@ -140,6 +139,7 @@ int main(int argc, char *argv[]) {
   std::string output_dir = config_data["output_dir"];
   const int roi_hw = config_data["roi_hw"];
   bool b_save_result = config_data["save_result"];
+  bool b_with_md_results = config_data["with_md_result"];
   bool b_save_csv = config_data["save_csv"];
   bool decode_step_mode = config_data["decode_step_mode"];
 
@@ -171,6 +171,7 @@ int main(int argc, char *argv[]) {
   uint8_t cameraId = getCameraId();
 
   // tcp
+  yolov8.mb_with_md_results = b_with_md_results;
   yolov8.m_tcp_ip = tcp_ip;
   yolov8.m_tcp_port = std::stoi(tcp_port);
 
@@ -221,7 +222,8 @@ int main(int argc, char *argv[]) {
       {
         Timer timer("md camera0 ...");
         for (int i = 0; i < 4; ++i) {
-          v_md4_camera0.at(i).process(img4_camera0.at(i).data(), &blob4_camera0.at(i));
+          v_md4_camera0.at(i).process(img4_camera0.at(i).data(),
+                                      &blob4_camera0.at(i));
           logger.log(DEBUG, "camera-0 instance number: ",
                      static_cast<int>(blob4_camera0[i].info.bits.rgn_num));
         }
@@ -275,7 +277,6 @@ int main(int argc, char *argv[]) {
                             std::ref(vv_blob_xyxy4), std::ref(yolov8), frame_id,
                             timestamp);
       asyncTask.detach();
-
     }
 
     // 释放帧

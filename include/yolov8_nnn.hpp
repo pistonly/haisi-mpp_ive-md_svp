@@ -114,6 +114,7 @@ public:
   bool mb_save_csv = false;
   bool mb_tcp_send = true;
   bool mb_yolo_ready = true;
+  bool mb_with_md_results = false;
   int m_processed_num = 0;
   float m_infer_total_time = 0;
 
