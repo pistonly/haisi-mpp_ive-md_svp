@@ -104,6 +104,9 @@ add_executable(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns ./examples/md4k_y
 add_executable(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns_v2 ./examples/md4k_yoloThread_merge_rois_async_vpss_nnn_2chns_v2.cpp
   ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
 
+add_executable(md4k_yoloThread_merge_rois_async_vpss_nnn_1chn ./examples/md4k_yoloThread_merge_rois_async_vpss_nnn_1chn.cpp
+  ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
+
 add_executable(md_yoloThread_merge_rois_async_vdec_vpss_nnn ./examples/md_yoloThread_merge_rois_async_vdec_vpss_nnn.cpp
   ${SVP_COMMON_SRC} ${SAMPLE_COMMON_SRC} ${UTILS_SRC} ${YOLOV8_NNN_SRC})
 
@@ -268,6 +271,19 @@ target_link_libraries(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns
 )
 
 target_link_libraries(md4k_yoloThread_merge_rois_async_vpss_nnn_2chns_v2
+  ive_md
+  pthread
+  ${YOLO_LIB}
+  ${SYSTEM_LIBS}
+  ${SECURITY_LIBS}
+  ${ACL_LIBS}
+  ${IVE_LINK_LIBS}
+  ascendcl
+  stdc++ # note this line is important
+)
+
+
+target_link_libraries(md4k_yoloThread_merge_rois_async_vpss_nnn_1chn
   ive_md
   pthread
   ${YOLO_LIB}

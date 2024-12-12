@@ -558,14 +558,12 @@ bool YOLOV8Sync_combine::process_one_image(
     Host2Device(input_yuv.data(), input_yuv.size());
   }
 
-  std::cout << "before inference" << std::endl;
   // inference
   {
     Timer timer("yolov8 inferencing ...");
     Execute();
   }
 
-  std::cout << "before PP" << std::endl;
   // postprocess
   {
     Timer timer("yolov8 postprocessing ...");
@@ -647,7 +645,9 @@ bool YOLOV8Sync_combine::process_one_image(
 
   if (elapsedSeconds.count() > m_save_interval) {
     // 执行函数体
-    connect_to_tcp(m_tcp_ip, m_tcp_port);
+    if (mb_tcp_send) {
+      connect_to_tcp(m_tcp_ip, m_tcp_port);
+    }
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
     // if (mb_sock_connected) {
@@ -760,7 +760,9 @@ bool YOLOV8Sync_combine::process_one_image_batched(
 
   if (elapsedSeconds.count() > m_save_interval) {
     // 执行函数体
-    connect_to_tcp(m_tcp_ip, m_tcp_port);
+    if (mb_tcp_send) {
+      connect_to_tcp(m_tcp_ip, m_tcp_port);
+    }
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
     // if (mb_sock_connected) {

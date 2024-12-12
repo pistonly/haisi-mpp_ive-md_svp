@@ -34,6 +34,7 @@ public:
   float m_max_det = default_max_det;
   bool mb_save_results = false;
   bool mb_save_csv = false;
+  bool mb_tcp_send = true;
   uint8_t m_cameraId = 0;
 
   // tcp
@@ -111,6 +112,7 @@ public:
   std::string m_output_dir;
   bool mb_save_results = false;
   bool mb_save_csv = false;
+  bool mb_tcp_send = true;
   bool mb_yolo_ready = true;
   int m_processed_num = 0;
   float m_infer_total_time = 0;
