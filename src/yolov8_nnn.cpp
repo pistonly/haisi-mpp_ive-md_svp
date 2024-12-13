@@ -18,7 +18,7 @@ extern Logger logger;
 
 void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
                        int sock,
-                       const std::vector<std::vector<float>> &real_decs,
+                       std::vector<std::vector<float>> &real_decs,
                        uint8_t cameraId, int imageId, uint64_t timestamp,
                        const std::string &output_dir) {
   if (real_decs.size() > 0) {
@@ -33,6 +33,8 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
     ss << "decs_camera-" << static_cast<int>(cameraId) << "_image-"
        << std::setw(6) << std::setfill('0') << imageId << "_" << millis;
     if (sock_connected) {
+      // add fake for display software
+      real_decs.push_back({0.f, 0.f, 0.f, 0.f, 0.f, 100.f});
       send_dection_results(sock, real_decs, cameraId, timestamp);
     }
     if (save_bin) {

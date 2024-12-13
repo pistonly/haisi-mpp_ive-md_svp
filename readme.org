@@ -3,6 +3,12 @@
   cp /home/liuyang/Documents/tmp/S81app /etc/init.d/ && rm -r /mnt/data/mpp_ive_md_svp-copy && cp -r /home/liuyang/Documents/haisi/mpp_ive_md_svp-copy /mnt/data/
 #+end_src
 
+
+** 修改配置文件
+windows下修改危机：D：/nfs_share/deploy/mpp_ive-md_svp/data/configure_4k_nnn.json
+打开conda shell
+在D：/nfs_share/deploy/路径下运行：
+python 
 * description
 input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
 
