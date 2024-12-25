@@ -21,6 +21,7 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
                        std::vector<std::vector<float>> &real_decs,
                        uint8_t cameraId, int imageId, uint64_t timestamp,
                        const std::string &output_dir) {
+  real_decs.push_back({0.f, 0.f, 0.f, 0.f, 0.f, 100.f});
   if (real_decs.size() > 0) {
     std::stringstream ss;
 
@@ -34,7 +35,7 @@ void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
        << std::setw(6) << std::setfill('0') << imageId << "_" << millis;
     if (sock_connected) {
       // add fake for display software
-      real_decs.push_back({0.f, 0.f, 0.f, 0.f, 0.f, 100.f});
+      logger.log(DEBUG, "real_decs");
       send_dection_results(sock, real_decs, cameraId, timestamp);
     }
     if (save_bin) {
