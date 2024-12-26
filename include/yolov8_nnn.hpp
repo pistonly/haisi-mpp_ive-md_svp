@@ -103,6 +103,9 @@ class YOLOV8Sync : public NNNYOLOV8, public TCP {
 public:
   YOLOV8Sync(const std::string &modelPath, const std::string &output_dir = "./",
              const std::string &aclJSON = "");
+
+  YOLOV8Sync(const std::string &modelPath, const std::string &output_dir,
+             const bool with_aclinit, const std::string &aclJSON = "");
   ~YOLOV8Sync() {
     logger.log(INFO, "\n---------------------------\n",
                "averaged infer time: ", m_infer_total_time / m_processed_num,

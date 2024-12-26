@@ -384,6 +384,39 @@ YOLOV8Sync::YOLOV8Sync(const std::string &modelPath,
   }
 }
 
+YOLOV8Sync::YOLOV8Sync(const std::string &modelPath,
+                       const std::string &output_dir,
+                       const bool with_aclinit,
+                       const std::string &aclJSON)
+  : NNNYOLOV8(modelPath, with_aclinit, aclJSON) {
+  char c_output_dir[PATH_MAX];
+  if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
+    logger.log(ERROR, "Output directory error: ", output_dir);
+  }
+  m_output_dir = std::string(c_output_dir);
+
+  if (m_output_dir.back() != '/')
+    m_output_dir += '/';
+  logger.log(INFO, "Output directory is: ", m_output_dir);
+  std::vector<size_t> outbuf_size;
+  GetOutBufferSize(outbuf_size);
+  logger.log(INFO, "out num: ", outbuf_size.size());
+  for (size_t i = 0; i < outbuf_size.size(); ++i) {
+    logger.log(INFO, "size of output_", i, ": ", outbuf_size[i]);
+  }
+
+  GetModelInfo(nullptr, &m_input_h, &m_input_w, nullptr, nullptr,
+               &mv_outputs_dim);
+  for (auto &dim_i : mv_outputs_dim) {
+    std::stringstream ss;
+    ss << "out dim: " << std::endl;
+    for (auto dim_i_j : dim_i) {
+      ss << dim_i_j << ", ";
+    }
+    logger.log(INFO, ss.str());
+  }
+}
+
 void YOLOV8Sync::set_postprocess_parameters(float conf_thres, float iou_thres,
                                             int max_det) {
   m_conf_thres = conf_thres;
