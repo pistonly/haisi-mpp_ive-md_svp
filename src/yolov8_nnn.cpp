@@ -600,8 +600,12 @@ bool pt_in_sky(float c_x, float c_y,
   int rgn_num = sky_det_bbox.at(0).size();
   for(int i=0; i<rgn_num; ++i) {
     auto &xyxy = sky_det_bbox[0][i];
-    // logger.log(INFO, "xyxy: ", xyxy[0], ", ", xyxy[1], ", ", xyxy[2], ", ", xyxy[3], "c_xy", c_x, ", ", c_y);
-    if ((c_x >= xyxy[0]) && (c_x <= xyxy[2]) && (c_y >= xyxy[1]) && (c_y <= xyxy[3])){
+    // // logger.log(INFO, "xyxy: ", xyxy[0], ", ", xyxy[1], ", ", xyxy[2], ", ", xyxy[3], "c_xy", c_x, ", ", c_y);
+    // if ((c_x >= xyxy[0]) && (c_x <= xyxy[2]) && (c_y >= xyxy[1]) && (c_y <= xyxy[3])){
+    //   // logger.log(INFO, "true");
+    //   return true;
+    // }
+    if (c_y <= xyxy[3]) {
       // logger.log(INFO, "true");
       return true;
     }
