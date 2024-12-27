@@ -722,6 +722,7 @@ void save_detect_results_csv(const std::vector<std::vector<float>> &decs,
   return;
 }
 
+
 void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
                    unsigned char *outputImageDatas[4]) {
   // Calculate sizes

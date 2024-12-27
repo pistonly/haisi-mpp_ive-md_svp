@@ -36,6 +36,31 @@ extern Logger logger;
 std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
 
+// for debug
+void save_detect_results_csv(const std::vector<std::vector<half>> &dec_bbox,
+                             const std::vector<half> &dec_conf,
+                             const std::vector<half> &dec_cls,
+                             const std::string &out_dir,
+                             const std::string &filename) {
+  std::ofstream outFile(out_dir + filename, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << filename << " for writing."
+              << std::endl;
+    return;
+  }
+
+  int dec_num = dec_bbox.size();
+  for (int i = 0; i < dec_num; ++i) {
+    const auto &bbox = dec_bbox[i];
+    for (const auto &xyxy_i : bbox)
+      outFile << xyxy_i << ", ";
+    outFile << dec_conf[i] << ", ";
+    outFile << dec_cls[i] << std::endl;
+  }
+  outFile.close();
+  return;
+}
+
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
 void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
                      std::vector<unsigned char> &img_high,
@@ -55,6 +80,11 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
                 sky_img_h, sky_img_w);
   yolov8_sky.process_one_image(sky_img, sky_det_bbox, sky_det_conf,
                                sky_det_cls);
+
+  // debug
+  std::stringstream ss;
+  ss << "sky_result_frame_id_" << frame_id << "_" << sky_offset_x << "_" << sky_offset_y << "_" << sky_scale << ".csv";
+  save_detect_results_csv(sky_det_bbox.at(0), sky_det_conf.at(0), sky_det_cls.at(0), "/mnt/data/tmp/", ss.str());
 
   merge_rois(img_high.data(), v_blob_xyxy, merged_roi, v_top_lefts, 2160, 3840, 640,
              640, 400);

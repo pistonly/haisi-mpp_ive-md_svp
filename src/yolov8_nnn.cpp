@@ -600,8 +600,11 @@ bool pt_in_sky(float c_x, float c_y,
   int rgn_num = sky_det_bbox.at(0).size();
   for(int i=0; i<rgn_num; ++i) {
     auto &xyxy = sky_det_bbox[0][i];
-    if ((c_x >= xyxy[0]) && (c_x <= xyxy[2]) && (c_y >= xyxy[1]) && (c_y <= xyxy[3]))
+    // logger.log(INFO, "xyxy: ", xyxy[0], ", ", xyxy[1], ", ", xyxy[2], ", ", xyxy[3], "c_xy", c_x, ", ", c_y);
+    if ((c_x >= xyxy[0]) && (c_x <= xyxy[2]) && (c_y >= xyxy[1]) && (c_y <= xyxy[3])){
+      // logger.log(INFO, "true");
       return true;
+    }
   }
   return false;
 }
@@ -639,10 +642,6 @@ bool YOLOV8Sync::process_one_image(
       grid_x = static_cast<int>(c_x / roi_hw);
       grid_y = static_cast<int>(c_y / roi_hw);
 
-      float cls = det_cls[i][j];
-      if (pt_in_sky(c_x, c_y, sky_det_bbox))
-        cls += 10;
-
       const int filted_id = grid_y * grid_num_x + grid_x;
       const float &current_best_conf = filted_decs[filted_id][4];
       if (filted_id < 100 && conf > current_best_conf) {
@@ -667,6 +666,10 @@ bool YOLOV8Sync::process_one_image(
         y0 = c_y - dec[3] / 2;
         x1 = x0 + dec[2];
         y1 = y0 + dec[3];
+
+        if (pt_in_sky(c_x, c_y, sky_det_bbox))
+          dec[5] += 10;
+
       } else {
         if (!mb_with_md_results) {
           continue;
