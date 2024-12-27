@@ -83,6 +83,17 @@ void send_dection_results(int sock, const std::vector<std::vector<float>> &decs,
                           uint8_t cameraId, uint64_t timestamp);
 
 /**
+ * @brief Summary
+ * @details Description
+ * @param[in] p_blob Pointer to blob
+ * @param[out] blob_xyxy The xyxy of blob
+ * @param[in] scale Description
+ */
+void blob_to_xyxy(const ot_ive_ccblob *p_blob,
+                  std::vector<std::vector<float>> &blob_xyxy, const float scale,
+                  const int max_size);
+
+/**
  * @brief merge rois to big Canvas.
  * @details Description
  * @param[in] img: YUV format image
@@ -102,7 +113,13 @@ void merge_rois(const unsigned char *img, ot_ive_ccblob *p_blob,
                 std::vector<std::pair<int, int>> &top_lefts,
                 std::vector<std::vector<float>> &blob_xyxy, float scale_x,
                 float scale_y, int imgH, int imgW, int merged_roi_H,
-                int merged_roi_W, int max_roi_num=200);
+                int merged_roi_W, int max_roi_num = 200);
+
+void merge_rois(const unsigned char *img,
+                const std::vector<std::vector<float>> &blob_xyxy,
+                std::vector<unsigned char> &merged_rois,
+                std::vector<std::pair<int, int>> &top_lefts, int imgH, int imgW,
+                int merged_roi_H, int merged_roi_W, int max_roi_num = 400);
 
 /**
  * @brief Debug tool. save data to binary files.
@@ -122,6 +139,16 @@ int save_merged_rois(const std::vector<unsigned char> &merged_roi,
  * @param[in] frame Description
  */
 void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame);
+
+void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
+                   int &outputOffsetY,
+                   const std::vector<unsigned char> &inputFrame,
+                   const int inputHeight, const int inputWidth,
+                   int outputHeight, int outputWidth);
+void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
+                   int &outputOffsetY, ot_video_frame_info *frame,
+                   int outputHeight, int outputWidth);
+
 /**
  * @brief 将YUV420格式的图像帧分割为四个宽高均为一半的小图像。
  *
@@ -146,6 +173,11 @@ void copy_split_yuv420_from_frame(
     std::vector<std::vector<unsigned char>> &outputImageDatas,
     ot_video_frame_info *frame);
 
+void copy_split_yuv420_from_frame(
+    std::vector<std::vector<unsigned char>> &outputImageDatas,
+    const std::vector<unsigned char> &srcFrame, const int srcHeight,
+    const int srcWidth);
+
 /**
  * @brief 分割YUV420sp（NV12/NV21）格式的图像为四个宽高均为一半的小图像。
  *
@@ -168,7 +200,8 @@ void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
                    unsigned char *outputImageDatas[4]);
 
 /**
- * @brief 将四个 YUV420sp（NV12/NV21）格式的小图像合成为一个原始尺寸的大图像。
+ * @brief 将四个
+ * YUV420sp（NV12/NV21）格式的小图像合成为一个原始尺寸的大图像。
  *
  * @param v_yuv420sp_4
  * 存储四个输入小图像数据的向量，每个元素是一个字节向量，表示一张小图像。
@@ -179,15 +212,19 @@ void splitYUV420sp(const unsigned char *inputImageData, int width, int height,
  * - 第 3 个：右下角
  * @param width 合成后大图像的宽度。
  * @param height 合成后大图像的高度。
- * @param yuv420sp_combined 存储合成后大图像数据的向量，函数会将数据写入其中。
+ * @param yuv420sp_combined
+ * 存储合成后大图像数据的向量，函数会将数据写入其中。
  * 该向量应当预先分配足够的空间，大小至少为 `width * height * 3 / 2` 字节。
  *
  * 该函数将四个小的 YUV420sp 图像按照象限合并到一个大图像中。
- * Y（亮度）和平面和 UV（色度）平面分别处理，使用 `memcpy` 进行高效的数据复制。
+ * Y（亮度）和平面和 UV（色度）平面分别处理，使用 `memcpy`
+ * 进行高效的数据复制。
  *
- * @note 输入的小图像应当是由分割函数得到的，尺寸为 `(width/2) x (height/2)`。
+ * @note 输入的小图像应当是由分割函数得到的，尺寸为 `(width/2) x
+ * (height/2)`。
  *
- * @warning `yuv420sp_combined` 向量必须预先分配，并且大小至少为 `width * height
+ * @warning `yuv420sp_combined` 向量必须预先分配，并且大小至少为 `width *
+ * height
  * * 3 / 2` 字节。
  */
 void combine_YUV420sp(

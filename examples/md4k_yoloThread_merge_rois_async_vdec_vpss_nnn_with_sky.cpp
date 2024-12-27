@@ -37,17 +37,19 @@ std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
-void processInThread(
-    uint8_t cameraId,
-    std::vector<std::vector<unsigned char>>
-        &v_merged_roi4,
-    std::vector<std::vector<std::pair<int, int>>> &vv_top_lefts4,
-    std::vector<std::vector<std::vector<float>>> &vv_blob_xyxy4,
-    YOLOV8Sync &yolov8_sky,
-    YOLOV8Sync_combine &yolov8, int frame_id, int64_t pts) {
-  yolov8_sky.process_one_image(v_merged_roi4[0], vv_top_lefts4[0], vv_blob_xyxy4[0], 0, 0, 0);
-  yolov8.process_one_image_batched(v_merged_roi4, vv_top_lefts4, vv_blob_xyxy4,
-                           cameraId, frame_id, pts);
+void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
+                     std::vector<unsigned char> &sky_img,
+                     std::vector<std::pair<int, int>> &v_top_lefts,
+                     std::vector<std::vector<float>> &v_blob_xyxy,
+                     YOLOV8Sync &yolov8_sky, YOLOV8Sync &yolov8, int frame_id,
+                     int64_t pts) {
+  std::vector<std::vector<std::vector<half>>> sky_det_bbox;
+  std::vector<std::vector<half>> sky_det_conf;
+  std::vector<std::vector<half>> sky_det_cls;
+  yolov8_sky.process_one_image(sky_img, sky_det_bbox, sky_det_conf,
+                               sky_det_cls);
+  yolov8.process_one_image(merged_roi, v_top_lefts, v_blob_xyxy, sky_det_bbox,
+                           sky_det_conf, sky_det_cls, cameraId, frame_id, pts);
 }
 
 int main(int argc, char *argv[]) {
@@ -117,9 +119,7 @@ int main(int argc, char *argv[]) {
   const int merged_size = merged_hw * merged_hw * 1.5;
 
   // Pre-allocate buffers outside the loop
-  std::vector<std::vector<unsigned char>> v_merged_roi4(
-      4, std::vector<unsigned char>(merged_size));
-  std::vector<unsigned char> merged_roi_combined(merged_size * 4, 0);
+  std::vector<unsigned char> merged_roi(merged_size, 0);
 
   std::vector<ot_ive_ccblob> blob4(4, {0});
 
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
   decoder.start_decode();
 
   // 初始化NPU
-  YOLOV8Sync_combine yolov8(omPath, output_dir);
+  YOLOV8Sync yolov8(omPath, output_dir);
   YOLOV8Sync yolov8_sky(omPath, output_dir, false);
   uint8_t cameraId = getCameraId();
 
@@ -165,8 +165,13 @@ int main(int argc, char *argv[]) {
       4, std::vector<unsigned char>(IMAGE_SIZE));
 
   auto start_time = std::chrono::high_resolution_clock::now();
-  std::vector<std::vector<std::pair<int, int>>> vv_top_lefts4(4);
-  std::vector<std::vector<std::vector<float>>> vv_blob_xyxy4(4);
+  std::vector<std::vector<float>> blob_xyxy;
+  std::vector<std::pair<int, int>> top_lefts;
+  std::vector<unsigned char> img_high(4 * IMAGE_SIZE);
+  const int sky_img_h = 640;
+  const int sky_img_w = 640;
+  std::vector<unsigned char> sky_img(sky_img_h * sky_img_w * 1.5);
+
   while (running && !decoder.is_ffmpeg_exit()) {
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
@@ -180,7 +185,16 @@ int main(int argc, char *argv[]) {
     {
       Timer timer("Get Frames");
       if (decoder.get_frame_without_release()) {
-        copy_split_yuv420_from_frame(img4, &decoder.frame_H);
+        {
+          Timer timer("split frame");
+          copy_split_yuv420_from_frame(img4, &decoder.frame_H);
+        }
+        {
+          Timer timer("copy 4k frame");
+          copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
+                                 &decoder.frame_H);
+        }
+        decoder.release_frames();
       } else {
         break;
       }
@@ -193,51 +207,60 @@ int main(int argc, char *argv[]) {
         logger.log(DEBUG, "instance number: ",
                    static_cast<int>(blob4[i].info.bits.rgn_num));
       }
-
-      decoder.release_frames();
     }
 
     // 合并ROI
     if (yolov8.mb_yolo_ready) {
       Timer timer("merge");
+      blob_xyxy.clear();
       for (int i = 0; i < 4; ++i) {
-        std::vector<std::pair<int, int>> top_lefts_i;
         std::vector<std::vector<float>> blob_xyxy_i;
-        merge_rois(img4[i].data(), &blob4[i], v_merged_roi4[i], top_lefts_i,
-                   blob_xyxy_i, 4.0f, 4.0f, 1080, 1920, merged_hw, merged_hw, max_roi_num);
+        blob_to_xyxy(&blob4[i], blob_xyxy_i, 4.0f, 32);
+
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
-        for (auto &tl : top_lefts_i) {
-          tl.first = tl.first + top_lefts_offset_x_i;
-          tl.second = tl.second + top_lefts_offset_y_i;
-        }
-        for (auto &xyxy: blob_xyxy_i){
+        for (auto &xyxy : blob_xyxy_i) {
           xyxy[0] += top_lefts_offset_x_i;
           xyxy[1] += top_lefts_offset_y_i;
           xyxy[2] += top_lefts_offset_x_i;
           xyxy[3] += top_lefts_offset_y_i;
         }
-        vv_top_lefts4[i] = std::move(top_lefts_i);
-        vv_blob_xyxy4[i] = std::move(blob_xyxy_i);
+
+        blob_xyxy.insert(blob_xyxy.end(), blob_xyxy_i.begin(),
+                         blob_xyxy_i.end());
       }
-      // // merge to 4k
-      // combine_YUV420sp(v_merged_roi4, merged_hw * 2, merged_hw * 2,
-      //                  merged_roi_combined);
-      // // debug
-      // // save merged_roi
-      // save_merged_rois(merged_roi_combined, output_dir, frame_id);
+      // sort blob_xyxy by second entry(blob_xyxy[i][1])
+      std::sort(blob_xyxy.begin(), blob_xyxy.end(),
+                [](const std::vector<float> &a, const std::vector<float> &b) {
+                  return a[1] < b[1];
+                });
+      if (blob_xyxy.size() > 400) {
+        blob_xyxy.resize(400);
+      }
+
+      merge_rois(img_high.data(), blob_xyxy, merged_roi, top_lefts, 2160, 3840,
+                 640, 640, 400);
     }
 
     // 输入到NPU, 推理改为异步执行
     if (yolov8.mb_yolo_ready) {
       Timer timer("yolov8");
       uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
+
+      // resize for sky
+      {
+        Timer timer("resize yuv420");
+        int sky_offset_x, sky_offset_y;
+        resize_yuv420(sky_img, sky_offset_x, sky_offset_y, img_high, 2160, 3840,
+                      sky_img_h, sky_img_w);
+      }
+
       // 创建新线程
-      std::thread asyncTask(processInThread, cameraId,
-                            std::ref(v_merged_roi4),
-                            std::ref(vv_top_lefts4), std::ref(vv_blob_xyxy4),
-                            std::ref(yolov8_sky),
-                            std::ref(yolov8), frame_id, timestamp);
+      std::thread asyncTask(processInThread, cameraId, std::ref(merged_roi),
+                            std::ref(sky_img),
+                            std::ref(top_lefts), std::ref(blob_xyxy),
+                            std::ref(yolov8_sky), std::ref(yolov8), frame_id,
+                            timestamp);
       asyncTask.detach();
     }
 

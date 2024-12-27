@@ -17,8 +17,7 @@ extern Logger logger;
 // static std::time_t lastTime = std::chrono::system_clock::to_time_t(now);
 
 void send_save_results(bool sock_connected, bool save_bin, bool save_csv,
-                       int sock,
-                       std::vector<std::vector<float>> &real_decs,
+                       int sock, std::vector<std::vector<float>> &real_decs,
                        uint8_t cameraId, int imageId, uint64_t timestamp,
                        const std::string &output_dir) {
   real_decs.push_back({0.f, 0.f, 0.f, 0.f, 0.f, 100.f});
@@ -385,10 +384,9 @@ YOLOV8Sync::YOLOV8Sync(const std::string &modelPath,
 }
 
 YOLOV8Sync::YOLOV8Sync(const std::string &modelPath,
-                       const std::string &output_dir,
-                       const bool with_aclinit,
+                       const std::string &output_dir, const bool with_aclinit,
                        const std::string &aclJSON)
-  : NNNYOLOV8(modelPath, with_aclinit, aclJSON) {
+    : NNNYOLOV8(modelPath, with_aclinit, aclJSON) {
   char c_output_dir[PATH_MAX];
   if (realpath(output_dir.c_str(), c_output_dir) == NULL) {
     logger.log(ERROR, "Output directory error: ", output_dir);
@@ -463,15 +461,14 @@ void YOLOV8Sync::post_process(
 
 bool YOLOV8Sync::process_one_image(
     const std::vector<unsigned char> &input_yuv,
-    const std::vector<std::pair<int, int>> &v_toplefts,
-    const std::vector<std::vector<float>> &v_blob_xyxy, uint8_t cameraId,
-    int imageId, uint64_t timestamp) {
-
+    std::vector<std::vector<std::vector<half>>> &det_bbox,
+    std::vector<std::vector<half>> &det_conf,
+    std::vector<std::vector<half>> &det_cls) {
   mb_yolo_ready = false;
 
-  std::vector<std::vector<std::vector<half>>> det_bbox;
-  std::vector<std::vector<half>> det_conf;
-  std::vector<std::vector<half>> det_cls;
+  det_bbox.clear();
+  det_conf.clear();
+  det_cls.clear();
   // host to device
   {
     Timer timer("yolov8 H2D ...");
@@ -494,6 +491,25 @@ bool YOLOV8Sync::process_one_image(
     Timer timer("yolov8 postprocessing ...");
     post_process(det_bbox, det_conf, det_cls);
   }
+
+  mb_yolo_ready = true;
+  m_processed_num++;
+  return true;
+}
+
+bool YOLOV8Sync::process_one_image(
+    const std::vector<unsigned char> &input_yuv,
+    const std::vector<std::pair<int, int>> &v_toplefts,
+    const std::vector<std::vector<float>> &v_blob_xyxy, uint8_t cameraId,
+    int imageId, uint64_t timestamp) {
+
+  mb_yolo_ready = false;
+
+  std::vector<std::vector<std::vector<half>>> det_bbox;
+  std::vector<std::vector<half>> det_conf;
+  std::vector<std::vector<half>> det_cls;
+
+  process_one_image(input_yuv, det_bbox, det_conf, det_cls);
 
   // filter detections. each DEC assign to one 32x32 patch
   int roi_hw = 32;
@@ -537,6 +553,9 @@ bool YOLOV8Sync::process_one_image(
         x1 = x0 + dec[2];
         y1 = y0 + dec[3];
       } else {
+        if (!mb_with_md_results) {
+          continue;
+        }
         x0 = blob_xyxy[0];
         y0 = blob_xyxy[1];
         x1 = blob_xyxy[2];
@@ -555,13 +574,132 @@ bool YOLOV8Sync::process_one_image(
 
   if (elapsedSeconds.count() > m_save_interval) {
     // 执行函数体
-    connect_to_tcp(m_tcp_ip, m_tcp_port);
+    if (mb_tcp_send) {
+      connect_to_tcp(m_tcp_ip, m_tcp_port);
+    }
     send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
                       real_decs, cameraId, imageId, timestamp, m_output_dir);
-    if (mb_sock_connected) {
-      close(m_sock);
-      mb_sock_connected = false;
+    // if (mb_sock_connected) {
+    //   close(m_sock);
+    //   mb_sock_connected = false;
+    // }
+
+    // 更新 lastTime 为当前时间
+    lastTime = currentTime;
+  }
+
+  mb_yolo_ready = true;
+  m_processed_num++;
+  return true;
+}
+
+bool pt_in_sky(float c_x, float c_y,
+               const std::vector<std::vector<std::vector<half>>> &sky_det_bbox,
+               const std::vector<std::vector<half>> &sky_det_conf,
+               const std::vector<std::vector<half>> &sky_det_cls) {
+  // only works for batch=1
+  int rgn_num = sky_det_bbox.at(0).size();
+  for(int i=0; i<rgn_num; ++i) {
+    auto &xyxy = sky_det_bbox[0][i];
+    if ((c_x >= xyxy[0]) && (c_x <= xyxy[2]) && (c_y >= xyxy[1]) && (c_y <= xyxy[3]))
+      return true;
+  }
+  return false;
+}
+
+bool YOLOV8Sync::process_one_image(
+    const std::vector<unsigned char> &input_yuv,
+    const std::vector<std::pair<int, int>> &v_toplefts,
+    const std::vector<std::vector<float>> &v_blob_xyxy,
+    const std::vector<std::vector<std::vector<half>>> &sky_det_bbox,
+    const std::vector<std::vector<half>> &sky_det_conf,
+    const std::vector<std::vector<half>> &sky_det_cls, uint8_t cameraId,
+    int imageId, uint64_t timestamp) {
+
+  mb_yolo_ready = false;
+
+  std::vector<std::vector<std::vector<half>>> det_bbox;
+  std::vector<std::vector<half>> det_conf;
+  std::vector<std::vector<half>> det_cls;
+
+  process_one_image(input_yuv, det_bbox, det_conf, det_cls);
+
+  // filter detections. each DEC assign to one 32x32 patch
+  int roi_hw = 32;
+  const int grid_num_x = m_input_w / roi_hw;
+  const int grid_num_y = m_input_h / roi_hw;
+  float c_x, c_y, w, h, conf, x0, y0, x1, y1;
+  int grid_x, grid_y;
+  std::array<std::array<float, 6>, 400> filted_decs = {0};
+  std::vector<std::vector<float>> real_decs;
+  for (int i = 0; i < det_bbox.size(); ++i) {
+    for (auto j = 0; j < det_bbox[i].size(); ++j) {
+      const std::vector<half> &box = det_bbox[i][j];
+      c_x = 0.5f * (box[0] + box[2]);
+      c_y = 0.5f * (box[1] + box[3]);
+      conf = det_conf[i][j];
+      grid_x = static_cast<int>(c_x / roi_hw);
+      grid_y = static_cast<int>(c_y / roi_hw);
+
+      float cls = det_cls[i][j];
+      if (pt_in_sky(c_x, c_y, sky_det_bbox, sky_det_conf, sky_det_cls))
+        cls += 10;
+
+      const int filted_id = grid_y * grid_num_x + grid_x;
+      const float &current_best_conf = filted_decs[filted_id][4];
+      if (filted_id < 100 && conf > current_best_conf) {
+        float w = box[2] - box[0];
+        float h = box[3] - box[1];
+        filted_decs[filted_id] = {c_x, c_y, w, h, conf, det_cls[i][j]};
+      }
     }
+
+    // change to real location
+    const int instance_num = static_cast<int>(v_toplefts.size());
+    for (int k = 0; k < instance_num; ++k) {
+      const auto &tl = v_toplefts[k];
+      const auto &blob_xyxy = v_blob_xyxy[k];
+      auto &dec = filted_decs[k];
+      grid_x = k % grid_num_x;
+      grid_y = k / grid_num_x;
+      if (dec[4] > 0) {
+        c_x = dec[0] - roi_hw * grid_x + tl.first;
+        c_y = dec[1] - roi_hw * grid_y + tl.second;
+        x0 = c_x - dec[2] / 2;
+        y0 = c_y - dec[3] / 2;
+        x1 = x0 + dec[2];
+        y1 = y0 + dec[3];
+      } else {
+        if (!mb_with_md_results) {
+          continue;
+        }
+        x0 = blob_xyxy[0];
+        y0 = blob_xyxy[1];
+        x1 = blob_xyxy[2];
+        y1 = blob_xyxy[3];
+        dec[5] = 100;
+      }
+      real_decs.push_back({x0 / 2, y0 / 2, x1 / 2, y1 / 2, dec[4], dec[5]});
+    }
+  }
+
+  // 获取当前时间点
+  auto currentTime = std::chrono::steady_clock::now();
+  static auto lastTime = std::chrono::steady_clock::now();
+  // 计算时间间隔
+  std::chrono::duration<double> elapsedSeconds = currentTime - lastTime;
+
+  if (elapsedSeconds.count() > m_save_interval) {
+    // 执行函数体
+    if (mb_tcp_send) {
+      connect_to_tcp(m_tcp_ip, m_tcp_port);
+    }
+    send_save_results(mb_sock_connected, mb_save_results, mb_save_csv, m_sock,
+                      real_decs, cameraId, imageId, timestamp, m_output_dir);
+    // if (mb_sock_connected) {
+    //   close(m_sock);
+    //   mb_sock_connected = false;
+    // }
 
     // 更新 lastTime 为当前时间
     lastTime = currentTime;
@@ -815,5 +953,6 @@ bool YOLOV8Sync_combine::process_one_image_batched(
   }
 
   mb_yolo_ready = true;
+  m_processed_num++;
   return true;
 }

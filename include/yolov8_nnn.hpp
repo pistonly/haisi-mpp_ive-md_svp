@@ -144,6 +144,20 @@ public:
                          const std::vector<std::vector<float>> &v_blob_xyxy,
                          uint8_t cameraId, int imageId, uint64_t timestamp);
 
+  bool process_one_image(const std::vector<unsigned char> &input_yuv,
+                         std::vector<std::vector<std::vector<half>>> &det_bbox,
+                         std::vector<std::vector<half>> &det_conf,
+                         std::vector<std::vector<half>> &det_cls);
+
+  bool process_one_image(
+      const std::vector<unsigned char> &input_yuv,
+      const std::vector<std::pair<int, int>> &v_toplefts,
+      const std::vector<std::vector<float>> &v_blob_xyxy,
+      const std::vector<std::vector<std::vector<half>>> &sky_det_bbox,
+      const std::vector<std::vector<half>> &sky_det_conf,
+      const std::vector<std::vector<half>> &sky_det_cls, uint8_t cameraId,
+      int imageId, uint64_t timestamp);
+
   void set_postprocess_parameters(float conf_thres, float iou_thres,
                                   int max_det);
 
