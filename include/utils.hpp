@@ -141,13 +141,14 @@ int save_merged_rois(const std::vector<unsigned char> &merged_roi,
 void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame);
 
 void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
-                   int &outputOffsetY,
+                   int &outputOffsetY, float &outputScale,
                    const std::vector<unsigned char> &inputFrame,
                    const int inputHeight, const int inputWidth,
                    int outputHeight, int outputWidth);
 void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
-                   int &outputOffsetY, ot_video_frame_info *frame,
-                   int outputHeight, int outputWidth);
+                   int &outputOffsetY, float &outputScale,
+                   ot_video_frame_info *frame, int outputHeight,
+                   int outputWidth);
 
 /**
  * @brief 将YUV420格式的图像帧分割为四个宽高均为一半的小图像。

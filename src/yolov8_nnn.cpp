@@ -594,9 +594,8 @@ bool YOLOV8Sync::process_one_image(
 }
 
 bool pt_in_sky(float c_x, float c_y,
-               const std::vector<std::vector<std::vector<half>>> &sky_det_bbox,
-               const std::vector<std::vector<half>> &sky_det_conf,
-               const std::vector<std::vector<half>> &sky_det_cls) {
+               const std::vector<std::vector<std::vector<half>>> &sky_det_bbox
+               ) {
   // only works for batch=1
   int rgn_num = sky_det_bbox.at(0).size();
   for(int i=0; i<rgn_num; ++i) {
@@ -612,8 +611,7 @@ bool YOLOV8Sync::process_one_image(
     const std::vector<std::pair<int, int>> &v_toplefts,
     const std::vector<std::vector<float>> &v_blob_xyxy,
     const std::vector<std::vector<std::vector<half>>> &sky_det_bbox,
-    const std::vector<std::vector<half>> &sky_det_conf,
-    const std::vector<std::vector<half>> &sky_det_cls, uint8_t cameraId,
+    uint8_t cameraId,
     int imageId, uint64_t timestamp) {
 
   mb_yolo_ready = false;
@@ -642,7 +640,7 @@ bool YOLOV8Sync::process_one_image(
       grid_y = static_cast<int>(c_y / roi_hw);
 
       float cls = det_cls[i][j];
-      if (pt_in_sky(c_x, c_y, sky_det_bbox, sky_det_conf, sky_det_cls))
+      if (pt_in_sky(c_x, c_y, sky_det_bbox))
         cls += 10;
 
       const int filted_id = grid_y * grid_num_x + grid_x;

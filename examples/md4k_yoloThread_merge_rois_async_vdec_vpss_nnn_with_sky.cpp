@@ -38,7 +38,7 @@ void signal_handler(int signum) { running = false; }
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
 void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
-                     std::vector<unsigned char> &sky_img,
+                     std::vector<unsigned char> &img_high,
                      std::vector<std::pair<int, int>> &v_top_lefts,
                      std::vector<std::vector<float>> &v_blob_xyxy,
                      YOLOV8Sync &yolov8_sky, YOLOV8Sync &yolov8, int frame_id,
@@ -46,10 +46,32 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
   std::vector<std::vector<std::vector<half>>> sky_det_bbox;
   std::vector<std::vector<half>> sky_det_conf;
   std::vector<std::vector<half>> sky_det_cls;
+  int sky_offset_x, sky_offset_y;
+  float sky_scale;
+  const int sky_img_h = 640;
+  const int sky_img_w = 640;
+  std::vector<unsigned char> sky_img(sky_img_h * sky_img_w * 1.5);
+  resize_yuv420(sky_img, sky_offset_x, sky_offset_y, sky_scale, img_high, 2160, 3840,
+                sky_img_h, sky_img_w);
   yolov8_sky.process_one_image(sky_img, sky_det_bbox, sky_det_conf,
                                sky_det_cls);
+
+  merge_rois(img_high.data(), v_blob_xyxy, merged_roi, v_top_lefts, 2160, 3840, 640,
+             640, 400);
+
+  auto &sky_bbox = sky_det_bbox.at(0);
+  float inv_scale = 1. / sky_scale;
+  float sky_offset_x_scaled = inv_scale * sky_offset_x;
+  float sky_offset_y_scaled = inv_scale * sky_offset_y;
+  for (auto &sky_bbox_i:sky_bbox){
+    sky_bbox_i[0] = sky_bbox_i[0] * inv_scale - sky_offset_x_scaled;
+    sky_bbox_i[1] = sky_bbox_i[1] * inv_scale - sky_offset_y_scaled;
+    sky_bbox_i[2] = sky_bbox_i[2] * inv_scale - sky_offset_x_scaled;
+    sky_bbox_i[3] = sky_bbox_i[3] * inv_scale - sky_offset_y_scaled;
+  }
+
   yolov8.process_one_image(merged_roi, v_top_lefts, v_blob_xyxy, sky_det_bbox,
-                           sky_det_conf, sky_det_cls, cameraId, frame_id, pts);
+                           cameraId, frame_id, pts);
 }
 
 int main(int argc, char *argv[]) {
@@ -92,8 +114,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "rtsp_url", "om_path",     "tcp_ip",   "tcp_port",        "output_dir",
-      "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
+    "rtsp_url", "om_path",  "sky_om_path",   "tcp_ip",   "tcp_port",        "output_dir",
+    "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -103,6 +125,7 @@ int main(int argc, char *argv[]) {
 
   std::string rtsp_url = config_data["rtsp_url"];
   std::string omPath = config_data["om_path"];
+  std::string skyOmPath = config_data["sky_om_path"];
   std::string tcp_ip = config_data["tcp_ip"];
   std::string tcp_port = config_data["tcp_port"];
   std::string output_dir = config_data["output_dir"];
@@ -137,7 +160,7 @@ int main(int argc, char *argv[]) {
 
   // 初始化NPU
   YOLOV8Sync yolov8(omPath, output_dir);
-  YOLOV8Sync yolov8_sky(omPath, output_dir, false);
+  YOLOV8Sync yolov8_sky(skyOmPath, output_dir, false);
   uint8_t cameraId = getCameraId();
 
   // tcp server
@@ -154,6 +177,8 @@ int main(int argc, char *argv[]) {
     yolov8.m_iou_thres = config_data["iou_thres"];
   if (config_data.contains("max_det"))
     yolov8.m_max_det = config_data["max_det"];
+  if (config_data.contains("sky_conf_thres"))
+    yolov8_sky.m_conf_thres = config_data["sky_conf_thres"];
 
   Result sync_flag;
 
@@ -167,12 +192,10 @@ int main(int argc, char *argv[]) {
   auto start_time = std::chrono::high_resolution_clock::now();
   std::vector<std::vector<float>> blob_xyxy;
   std::vector<std::pair<int, int>> top_lefts;
-  std::vector<unsigned char> img_high(4 * IMAGE_SIZE);
-  const int sky_img_h = 640;
-  const int sky_img_w = 640;
-  std::vector<unsigned char> sky_img(sky_img_h * sky_img_w * 1.5);
+  std::vector<unsigned char> img_high_copy(4 * IMAGE_SIZE);
 
   while (running && !decoder.is_ffmpeg_exit()) {
+    std::vector<unsigned char> img_high(4 * IMAGE_SIZE);
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
       auto duration =
@@ -238,8 +261,6 @@ int main(int argc, char *argv[]) {
         blob_xyxy.resize(400);
       }
 
-      merge_rois(img_high.data(), blob_xyxy, merged_roi, top_lefts, 2160, 3840,
-                 640, 640, 400);
     }
 
     // 输入到NPU, 推理改为异步执行
@@ -250,14 +271,12 @@ int main(int argc, char *argv[]) {
       // resize for sky
       {
         Timer timer("resize yuv420");
-        int sky_offset_x, sky_offset_y;
-        resize_yuv420(sky_img, sky_offset_x, sky_offset_y, img_high, 2160, 3840,
-                      sky_img_h, sky_img_w);
+        img_high_copy = std::move(img_high);
       }
 
       // 创建新线程
       std::thread asyncTask(processInThread, cameraId, std::ref(merged_roi),
-                            std::ref(sky_img),
+                            std::ref(img_high_copy),
                             std::ref(top_lefts), std::ref(blob_xyxy),
                             std::ref(yolov8_sky), std::ref(yolov8), frame_id,
                             timestamp);

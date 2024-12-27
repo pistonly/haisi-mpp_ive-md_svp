@@ -142,7 +142,7 @@ void copy_yuv420_from_frame(char *yuv420, ot_video_frame_info *frame) {
 }
 
 void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
-                   int &outputOffsetY,
+                   int &outputOffsetY, float &outputScale,
                    const std::vector<unsigned char> &inputFrame,
                    const int inputHeight, const int inputWidth,
                    int outputHeight, int outputWidth) {
@@ -153,6 +153,7 @@ void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
   // 2. 计算缩放比例
   float scale = std::min(static_cast<float>(outputWidth) / inputWidth,
                          static_cast<float>(outputHeight) / inputHeight);
+  outputScale = scale;
 
   int scaledWidth = static_cast<int>(inputWidth * scale);
   int scaledHeight = static_cast<int>(inputHeight * scale);
@@ -212,7 +213,7 @@ void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
 }
 
 void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
-                   int &outputOffsetY, ot_video_frame_info *frame,
+                   int &outputOffsetY, float &outputScale, ot_video_frame_info *frame,
                    int outputHeight, int outputWidth) {
   td_u32 inputHeight = frame->video_frame.height;
   td_u32 inputWidth = frame->video_frame.width;
@@ -233,6 +234,7 @@ void resize_yuv420(std::vector<unsigned char> &outputYUV, int &outputOffsetX,
   // 2. 计算缩放比例
   float scale = std::min(static_cast<float>(outputWidth) / inputWidth,
                          static_cast<float>(outputHeight) / inputHeight);
+  outputScale = scale;
 
   int scaledWidth = static_cast<int>(inputWidth * scale);
   int scaledHeight = static_cast<int>(inputHeight * scale);
@@ -345,11 +347,12 @@ void copy_split_yuv420_from_frame(unsigned char *outputImageDatas[4],
                   yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
     }
 
-    // Copy UV plane data
-    for (int i = 0; i < uvHalfHeight; ++i) {
-      std::memcpy(uvOutput + i * uvHalfWidth,
-                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
-    }
+    // md using only Y plane
+    // // Copy UV plane data
+    // for (int i = 0; i < uvHalfHeight; ++i) {
+    //   std::memcpy(uvOutput + i * uvHalfWidth,
+    //               uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
+    // }
   }
   // 解除内存映射
   ss_mpi_sys_munmap(frame_data, size);
@@ -407,11 +410,11 @@ void copy_split_yuv420_from_frame(
                   yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
     }
 
-    // Copy UV plane data
-    for (int i = 0; i < uvHalfHeight; ++i) {
-      std::memcpy(uvOutput + i * uvHalfWidth,
-                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
-    }
+    // // Copy UV plane data
+    // for (int i = 0; i < uvHalfHeight; ++i) {
+    //   std::memcpy(uvOutput + i * uvHalfWidth,
+    //               uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
+    // }
   }
   // 解除内存映射
   ss_mpi_sys_munmap(frame_data, size);
@@ -458,14 +461,14 @@ void copy_split_yuv420_from_frame(
     // Copy Y plane data
     for (int i = 0; i < yHalfHeight; ++i) {
       std::memcpy(yOutput + i * yHalfWidth,
-                  yPlane + (yStartY + i) * width + yStartX, yHalfWidth);
+                  yPlane + (yStartY + i) * srcWidth + yStartX, yHalfWidth);
     }
 
-    // Copy UV plane data
-    for (int i = 0; i < uvHalfHeight; ++i) {
-      std::memcpy(uvOutput + i * uvHalfWidth,
-                  uvPlane + (uvStartY + i) * width + uvStartX, uvHalfWidth);
-    }
+    // // Copy UV plane data
+    // for (int i = 0; i < uvHalfHeight; ++i) {
+    //   std::memcpy(uvOutput + i * uvHalfWidth,
+    //               uvPlane + (uvStartY + i) * srcWidth + uvStartX, uvHalfWidth);
+    // }
   }
 }
 
