@@ -1,0 +1,139 @@
+#include <iostream>
+#include <vector>
+#include <numeric>
+#include <cmath>
+
+// 声明 merge_rois 函数（带 roi_size 参数）
+void merge_rois(const unsigned char *img,
+                const std::vector<std::vector<float>> &blob_xyxy,
+                std::vector<unsigned char> &merged_rois,
+                std::vector<std::pair<int, int>> &top_lefts, int imgH, int imgW,
+                int merged_roi_H, int merged_roi_W, int max_roi_num, int roi_size = 32);
+
+bool test_merge_rois_with_custom_size() {
+    // 输入图像大小
+    const int imgH = 1000, imgW = 1000; // 原始图像为200x200
+    std::vector<unsigned char> img(imgH * imgW * 3 / 2, 0);
+    // 调用函数，设置 roi_size = 64
+    const int roi_size = 32;
+    const int roi_half = roi_size / 2; 
+
+    // 定义测试的 ROIs
+    std::vector<std::vector<float>> blob_xyxy = {
+      {80 - roi_half + roi_size * 0, 80-roi_half  + roi_size * 0, 80 + roi_half + roi_size * 0, 80 + roi_half + roi_size * 0},   // ROI 1
+      {80 - roi_half + roi_size * 1, 80-roi_half  + roi_size * 1, 80 + roi_half + roi_size * 1, 80 + roi_half + roi_size * 1},   // ROI 2
+      {80 - roi_half + roi_size * 2, 80-roi_half  + roi_size * 2, 80 + roi_half + roi_size * 2, 80 + roi_half + roi_size * 2},   // ROI 3
+    };
+
+    // 将 ROIs 区域置为亮色（255）
+    for (const auto &roi : blob_xyxy) {
+      for (int y = roi[1]; y < roi[3]; ++y) {
+        for (int x = roi[0]; x < roi[2]; ++x) {
+          img[y * imgW + x] = 255;
+        }
+      }
+    }
+
+    // 输出合并的图像大小
+    const int merged_roi_H = 128, merged_roi_W = 192; // 合并图像大小
+    std::vector<unsigned char> merged_rois(merged_roi_H * merged_roi_W * 3 / 2, 0);
+    std::vector<std::pair<int, int>> top_lefts;
+
+    merge_rois(img.data(), blob_xyxy, merged_rois, top_lefts, imgH, imgW,
+               merged_roi_H, merged_roi_W, 3, roi_size);
+
+    // 验证结果：计算合并后图像的平均像素值
+    int roi_area = roi_size * roi_size; // 每个 ROI 的面积
+    int total_area = roi_area * blob_xyxy.size(); // 所有有效 ROI 的总面积
+    int total_brightness = 255 * total_area;     // 理论上的总亮度值
+
+    // 计算实际的亮度总和
+    int actual_brightness = std::accumulate(merged_rois.begin(),
+                                            merged_rois.begin() + merged_roi_H * merged_roi_W, 0);
+
+    // 计算平均亮度值
+    double avg_brightness = static_cast<double>(actual_brightness) / (merged_roi_H * merged_roi_W);
+
+    // 打印验证信息
+    std::cout << "ROI Size: " << roi_size << std::endl;
+    std::cout << "Expected Avg Brightness: "
+              << static_cast<double>(total_brightness) / (merged_roi_H * merged_roi_W) << std::endl;
+    std::cout << "Actual Avg Brightness: " << avg_brightness << std::endl;
+
+    // 误差容忍范围
+    double tolerance = 1e-5;
+    return std::abs(avg_brightness - static_cast<double>(total_brightness) / (merged_roi_H * merged_roi_W)) < tolerance;
+}
+
+int main() {
+    if (test_merge_rois_with_custom_size()) {
+        std::cout << "Test passed!" << std::endl;
+    } else {
+        std::cout << "Test failed!" << std::endl;
+    }
+    return 0;
+}
+
+
+void merge_rois(const unsigned char *img,
+                const std::vector<std::vector<float>> &blob_xyxy,
+                std::vector<unsigned char> &merged_rois,
+                std::vector<std::pair<int, int>> &top_lefts, int imgH, int imgW,
+                int merged_roi_H, int merged_roi_W, int max_roi_num, int roi_size) {
+  top_lefts.clear();
+  // img and merged_rois are YUV format images.
+  const int roi_size_half = roi_size / 2;
+  const int rgn_num = std::min(static_cast<int>(blob_xyxy.size()), max_roi_num);
+  const int num_rois_per_row = merged_roi_W / roi_size;
+
+  const int Y_size = merged_roi_H * merged_roi_W;
+  const int UV_size = Y_size / 2;
+  // fill YUV to gray image
+  std::fill(merged_rois.begin(), merged_rois.begin() + Y_size, 0);
+  std::fill(merged_rois.begin() + Y_size, merged_rois.end(), 128);
+  for (int i = 0; i < rgn_num; ++i) {
+    const int offset_x = i % num_rois_per_row * roi_size;
+    const int offset_y = i / num_rois_per_row * roi_size;
+
+    auto &rgn = blob_xyxy[i];
+    const int center_x = static_cast<int>(0.5f * (rgn[0] + rgn[2]));
+    const int center_y = static_cast<int>(0.5f * (rgn[1] + rgn[3]));
+
+    const int w_start = std::max(center_x - roi_size_half, 0);
+    const int w_end = std::min(center_x + roi_size_half, imgW);
+    const int h_start = std::max(center_y - roi_size_half, 0);
+    const int h_end = std::min(center_y + roi_size_half, imgH);
+
+    top_lefts.push_back(std::make_pair(w_start, h_start));
+
+    if (w_start < 0) {
+      std::cout << "----------------w_start: " << w_start << std::endl;
+    }
+    // 预计算索引
+    unsigned int roi_offset = offset_y * merged_roi_W + offset_x;
+    unsigned int img_offset = h_start * imgW;
+    unsigned int roi_uv_offset =
+        (merged_roi_H + offset_y * 0.5) * merged_roi_W + offset_x;
+    unsigned int img_uv_offset = (imgH + h_start * 0.5) * imgW;
+    for (unsigned int h = h_start; h < h_end; ++h) {
+      for (unsigned int w = w_start, roi_x = 0; w < w_end; ++w, ++roi_x) {
+        // 检查是否越界
+        if (roi_offset + roi_x < merged_rois.size() &&
+            img_offset + w < imgH * imgW) {
+          merged_rois[roi_offset + roi_x] = img[img_offset + w];
+          // The number of rows in the Y channel is twice of the UV channel.
+          if (h % 2 == 0) {
+            // uv channel has the same w with Y channel
+            merged_rois[roi_uv_offset + roi_x] = img[img_uv_offset + w];
+          }
+        }
+      }
+      roi_offset += merged_roi_W;
+      img_offset += imgW;
+      if (h % 2 == 0) {
+        roi_uv_offset += merged_roi_W;
+        img_uv_offset += imgW;
+      }
+    }
+  }
+}
