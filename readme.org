@@ -1,3 +1,6 @@
+* install
+
+
 * develop command
 #+begin_src bash
   cp /home/liuyang/Documents/tmp/S81app /etc/init.d/ && rm -r /mnt/data/mpp_ive_md_svp-copy && cp -r /home/liuyang/Documents/haisi/mpp_ive_md_svp-copy /mnt/data/
