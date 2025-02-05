@@ -1,3 +1,5 @@
 /build/
 /out/
 /.cache/
+/tools/__pycache__/
+/tools/result_*
