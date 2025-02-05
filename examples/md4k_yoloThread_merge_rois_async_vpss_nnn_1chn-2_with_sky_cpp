@@ -82,7 +82,7 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
                      std::vector<std::pair<int, int>> &v_top_lefts,
                      std::vector<std::vector<float>> &v_blob_xyxy,
                      YOLOV8Sync &yolov8_sky, YOLOV8Sync &yolov8, int frame_id,
-                     int64_t pts) {
+                     int64_t pts, int roi_hw) {
   std::vector<std::vector<std::vector<half>>> sky_det_bbox;
   std::vector<std::vector<half>> sky_det_conf;
   std::vector<std::vector<half>> sky_det_cls;
@@ -96,6 +96,8 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
   yolov8_sky.process_one_image(sky_img, sky_det_bbox, sky_det_conf,
                                sky_det_cls);
 
+  merge_rois(img_high.data(), v_blob_xyxy, merged_roi, v_top_lefts, 2160, 3840, 640,
+             640, 100, roi_hw);
   auto &sky_bbox = sky_det_bbox.at(0);
   float inv_scale = 1. / sky_scale;
   float sky_offset_x_scaled = inv_scale * sky_offset_x;
@@ -174,7 +176,7 @@ int main(int argc, char *argv[]) {
   const int max_roi_num = config_data["max_roi_num"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
-  const int merged_hw = roi_hw * 20;
+  const int merged_hw = 640;
   const int merged_size = merged_hw * merged_hw * 1.5;
 
   // Pre-allocate buffers outside the loop
@@ -324,7 +326,7 @@ int main(int argc, char *argv[]) {
       std::thread asyncTask(processInThread, cameraId, std::ref(merged_roi),
                             std::ref(img_high_copy), std::ref(top_lefts),
                             std::ref(blob_xyxy), std::ref(yolov8_sky),
-                            std::ref(yolov8), frame_id, timestamp);
+                            std::ref(yolov8), frame_id, timestamp, roi_hw);
       asyncTask.detach();
     }
 

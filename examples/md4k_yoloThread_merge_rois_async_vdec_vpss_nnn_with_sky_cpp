@@ -35,43 +35,30 @@ extern Logger logger;
 
 std::atomic<bool> running(true);
 void signal_handler(int signum) { running = false; }
-// 提取通用的错误处理函数
-bool handle_error(const char *action, int vpss_grp, int vpss_chn, int ret) {
-  if (ret != TD_SUCCESS) {
-    logger.log(ERROR, action, " error, grp: ", vpss_grp, " chn: ", vpss_chn,
-               " Err code: ", ret);
-    return false;
-  }
-  return true;
-}
 
-// 获取或释放帧数据
-bool process_frames(std::vector<ot_video_frame_info> &v_frames,
-                    bool release = false) {
-  // only one chn: chn-1: {0, 0}, {0, 1}; chn-2: {2, 2}, {2, 3}
-  std::vector<std::pair<td_s32, td_s32>> grp_chns{{0, 0}, {0, 1}};
-
-  if (grp_chns.size() > v_frames.size()) {
-    logger.log(ERROR, "Frame number should not be less than grp_chn pairs");
-    return false;
+// for debug
+void save_detect_results_csv(const std::vector<std::vector<half>> &dec_bbox,
+                             const std::vector<half> &dec_conf,
+                             const std::vector<half> &dec_cls,
+                             const std::string &out_dir,
+                             const std::string &filename) {
+  std::ofstream outFile(out_dir + filename, std::ios::binary);
+  if (!outFile) {
+    std::cerr << "Error opening file " << filename << " for writing."
+              << std::endl;
+    return;
   }
 
-  for (size_t i = 0; i < grp_chns.size(); ++i) {
-    td_s32 &vpss_grp = grp_chns[i].first;
-    td_s32 &vpss_chn = grp_chns[i].second;
-
-    if (release) {
-      int ret = ss_mpi_vpss_release_chn_frame(vpss_grp, vpss_chn, &v_frames[i]);
-      if (!handle_error("Release vpss chn", vpss_grp, vpss_chn, ret))
-        return false;
-    } else {
-      int ret =
-          ss_mpi_vpss_get_chn_frame(vpss_grp, vpss_chn, &v_frames[i], 100);
-      if (!handle_error("Get vpss chn", vpss_grp, vpss_chn, ret))
-        return false;
-    }
+  int dec_num = dec_bbox.size();
+  for (int i = 0; i < dec_num; ++i) {
+    const auto &bbox = dec_bbox[i];
+    for (const auto &xyxy_i : bbox)
+      outFile << xyxy_i << ", ";
+    outFile << dec_conf[i] << ", ";
+    outFile << dec_cls[i] << std::endl;
   }
-  return true;
+  outFile.close();
+  return;
 }
 
 // 新的函数，用于在独立线程中执行 yolov8.process_one_image
@@ -80,7 +67,7 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
                      std::vector<std::pair<int, int>> &v_top_lefts,
                      std::vector<std::vector<float>> &v_blob_xyxy,
                      YOLOV8Sync &yolov8_sky, YOLOV8Sync &yolov8, int frame_id,
-                     int64_t pts) {
+                     int64_t pts, int roi_hw) {
   std::vector<std::vector<std::vector<half>>> sky_det_bbox;
   std::vector<std::vector<half>> sky_det_conf;
   std::vector<std::vector<half>> sky_det_cls;
@@ -89,16 +76,24 @@ void processInThread(uint8_t cameraId, std::vector<unsigned char> &merged_roi,
   const int sky_img_h = 640;
   const int sky_img_w = 640;
   std::vector<unsigned char> sky_img(sky_img_h * sky_img_w * 1.5);
-  resize_yuv420(sky_img, sky_offset_x, sky_offset_y, sky_scale, img_high, 2160,
-                3840, sky_img_h, sky_img_w);
+  resize_yuv420(sky_img, sky_offset_x, sky_offset_y, sky_scale, img_high, 2160, 3840,
+                sky_img_h, sky_img_w);
   yolov8_sky.process_one_image(sky_img, sky_det_bbox, sky_det_conf,
                                sky_det_cls);
+
+  // debug
+  std::stringstream ss;
+  ss << "sky_result_frame_id_" << frame_id << "_" << sky_offset_x << "_" << sky_offset_y << "_" << sky_scale << ".csv";
+  save_detect_results_csv(sky_det_bbox.at(0), sky_det_conf.at(0), sky_det_cls.at(0), "/mnt/data/tmp/", ss.str());
+
+  merge_rois(img_high.data(), v_blob_xyxy, merged_roi, v_top_lefts, 2160, 3840, 640,
+             640, 100, roi_hw);
 
   auto &sky_bbox = sky_det_bbox.at(0);
   float inv_scale = 1. / sky_scale;
   float sky_offset_x_scaled = inv_scale * sky_offset_x;
   float sky_offset_y_scaled = inv_scale * sky_offset_y;
-  for (auto &sky_bbox_i : sky_bbox) {
+  for (auto &sky_bbox_i:sky_bbox){
     sky_bbox_i[0] = sky_bbox_i[0] * inv_scale - sky_offset_x_scaled;
     sky_bbox_i[1] = sky_bbox_i[1] * inv_scale - sky_offset_y_scaled;
     sky_bbox_i[2] = sky_bbox_i[2] * inv_scale - sky_offset_x_scaled;
@@ -149,8 +144,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::vector<std::string> required_keys = {
-      "om_path", "sky_om_path", "tcp_ip",   "tcp_port",        "output_dir",
-      "roi_hw",  "save_result", "save_csv", "decode_step_mode"};
+    "rtsp_url", "om_path",  "sky_om_path",   "tcp_ip",   "tcp_port",        "output_dir",
+    "roi_hw",   "save_result", "save_csv", "decode_step_mode"};
   for (const auto &key : required_keys) {
     if (!config_data.contains(key)) {
       logger.log(ERROR, "Can't find key: ", key);
@@ -158,6 +153,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  std::string rtsp_url = config_data["rtsp_url"];
   std::string omPath = config_data["om_path"];
   std::string skyOmPath = config_data["sky_om_path"];
   std::string tcp_ip = config_data["tcp_ip"];
@@ -172,13 +168,13 @@ int main(int argc, char *argv[]) {
   const int max_roi_num = config_data["max_roi_num"];
 
   const int roi_size = roi_hw * roi_hw * 1.5; // YUV420sp
-  const int merged_hw = roi_hw * 20;
+  const int merged_hw = 640;
   const int merged_size = merged_hw * merged_hw * 1.5;
 
   // Pre-allocate buffers outside the loop
   std::vector<unsigned char> merged_roi(merged_size, 0);
 
-  std::vector<ot_ive_ccblob> blob4_camera0(4, {0});
+  std::vector<ot_ive_ccblob> blob4(4, {0});
 
   char absolute_path[PATH_MAX];
 
@@ -186,22 +182,22 @@ int main(int argc, char *argv[]) {
 
   // initialize md
   // NOTE: md should initialized before SVPNNN
-  bool b_sys_init = false;
-  std::vector<IVE_MD> v_md4_camera0;
-  v_md4_camera0.reserve(4);
-  for (int i = 0; i < 4; ++i) {
-    v_md4_camera0.emplace_back(b_sys_init);
-  }
+  std::vector<IVE_MD> v_md4(4);
+
+  // initialize ffmpeg_vdec_vpss
+  HardwareDecoder decoder(rtsp_url, decode_step_mode);
+  decoder.start_decode();
 
   // 初始化NPU
   YOLOV8Sync yolov8(omPath, output_dir);
   YOLOV8Sync yolov8_sky(skyOmPath, output_dir, false);
   uint8_t cameraId = getCameraId();
 
-  // tcp
-  yolov8.mb_with_md_results = b_with_md_results;
+  // tcp server
   yolov8.m_tcp_ip = tcp_ip;
   yolov8.m_tcp_port = std::stoi(tcp_port);
+  yolov8.mb_tcp_send = false;
+  yolov8.mb_with_md_results = true;
 
   yolov8.mb_save_results = b_save_result;
   yolov8.mb_save_csv = b_save_csv;
@@ -220,16 +216,15 @@ int main(int argc, char *argv[]) {
   int frame_id = 0;
 
   // Pre-allocate buffers
-  std::vector<std::vector<unsigned char>> img4_camera0(
+  std::vector<std::vector<unsigned char>> img4(
       4, std::vector<unsigned char>(IMAGE_SIZE));
 
   auto start_time = std::chrono::high_resolution_clock::now();
   std::vector<std::vector<float>> blob_xyxy;
   std::vector<std::pair<int, int>> top_lefts;
   std::vector<unsigned char> img_high_copy(4 * IMAGE_SIZE);
-  std::vector<ot_video_frame_info> v_frame_chns(2);
 
-  while (running) {
+  while (running && !decoder.is_ffmpeg_exit()) {
     std::vector<unsigned char> img_high(4 * IMAGE_SIZE);
     if (frame_id % 100 == 0) {
       auto _now = std::chrono::high_resolution_clock::now();
@@ -242,35 +237,28 @@ int main(int argc, char *argv[]) {
 
     {
       Timer timer("Get Frames");
-      if (!process_frames(v_frame_chns))
+      if (decoder.get_frame_without_release()) {
+        {
+          Timer timer("split frame");
+          copy_split_yuv420_from_frame(img4, &decoder.frame_H);
+        }
+        {
+          Timer timer("copy 4k frame");
+          copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
+                                 &decoder.frame_H);
+        }
+        decoder.release_frames();
+      } else {
         break;
-      {
-        Timer timer("split frame");
-        copy_split_yuv420_from_frame(img4_camera0, &v_frame_chns[0]);
-      }
-      {
-        Timer timer("copy 4k frame");
-        copy_yuv420_from_frame(reinterpret_cast<char *>(img_high.data()),
-                               &v_frame_chns[0]);
-      }
-      // 释放帧
-      {
-        Timer timer("Release Frames");
-        process_frames(v_frame_chns, true);
       }
     }
 
-    // MD
     {
-      Timer timer("md processing ...");
-      {
-        Timer timer("md camera0 ...");
-        for (int i = 0; i < 4; ++i) {
-          v_md4_camera0.at(i).process(img4_camera0.at(i).data(),
-                                      &blob4_camera0.at(i));
-          logger.log(DEBUG, "camera-0 instance number: ",
-                     static_cast<int>(blob4_camera0[i].info.bits.rgn_num));
-        }
+      Timer timer("md");
+      for (int i = 0; i < 4; ++i) {
+        v_md4[i].process(img4[i].data(), &blob4[i]);
+        logger.log(DEBUG, "instance number: ",
+                   static_cast<int>(blob4[i].info.bits.rgn_num));
       }
     }
 
@@ -280,7 +268,7 @@ int main(int argc, char *argv[]) {
       blob_xyxy.clear();
       for (int i = 0; i < 4; ++i) {
         std::vector<std::vector<float>> blob_xyxy_i;
-        blob_to_xyxy(&blob4_camera0[i], blob_xyxy_i, 4.0f, 32);
+        blob_to_xyxy(&blob4[i], blob_xyxy_i, 4.0f, 32);
 
         int top_lefts_offset_x_i = (i % 2) * 1920;
         int top_lefts_offset_y_i = (i / 2) * 1080;
@@ -302,15 +290,13 @@ int main(int argc, char *argv[]) {
       if (blob_xyxy.size() > 400) {
         blob_xyxy.resize(400);
       }
+
     }
 
     // 输入到NPU, 推理改为异步执行
     if (yolov8.mb_yolo_ready) {
       Timer timer("yolov8");
-      uint64_t timestamp = 0;
-      uint8_t cameraId_tmp;
-      cameraId_tmp = cameraId;
-      timestamp = v_frame_chns[1].video_frame.pts / 1000; // ms
+      uint64_t timestamp = decoder.frame_H.video_frame.pts / 1000; // ms
 
       // resize for sky
       {
@@ -320,9 +306,10 @@ int main(int argc, char *argv[]) {
 
       // 创建新线程
       std::thread asyncTask(processInThread, cameraId, std::ref(merged_roi),
-                            std::ref(img_high_copy), std::ref(top_lefts),
-                            std::ref(blob_xyxy), std::ref(yolov8_sky),
-                            std::ref(yolov8), frame_id, timestamp);
+                            std::ref(img_high_copy),
+                            std::ref(top_lefts), std::ref(blob_xyxy),
+                            std::ref(yolov8_sky), std::ref(yolov8), frame_id,
+                            timestamp, roi_hw);
       asyncTask.detach();
     }
 

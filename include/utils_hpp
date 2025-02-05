@@ -119,7 +119,7 @@ void merge_rois(const unsigned char *img,
                 const std::vector<std::vector<float>> &blob_xyxy,
                 std::vector<unsigned char> &merged_rois,
                 std::vector<std::pair<int, int>> &top_lefts, int imgH, int imgW,
-                int merged_roi_H, int merged_roi_W, int max_roi_num = 400);
+                int merged_roi_H, int merged_roi_W, int max_roi_num = 400, int roi_size=32);
 
 /**
  * @brief Debug tool. save data to binary files.
