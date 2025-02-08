@@ -1,0 +1,17 @@
+{
+    "rtsp_url": "rtsp://192.168.0.11/ch1/stream1",
+    "om_path": "../data/model/yolov8n_air-little-obj_32-roi_640x640_FP16.om",
+    "tcp_ip": "192.168.0.99",
+    "tcp_port": "12321",
+    "output_dir": "/mnt/data/tmp/",
+    "roi_hw": 32,
+    "save_result": false,
+    "save_csv": false,
+    "with_md_result": true,
+    "save_interval": 0.1,
+    "decode_step_mode": true,
+    "conf_thres": 0.1,
+    "max_roi_num": 20,
+    "log_level": "INFO"
+
+}

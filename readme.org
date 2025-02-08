@@ -1,22 +1,23 @@
-* install
 
 
 * develop command
+** step-1: 更新deploy/out文件夹，更新配置文件
+- 将需要的可执行文件从out文件夹拷贝到deploy/out文件夹
+- 更新配置文件deploy/mpp_ive-md_svp/data/configure_4k_nnn.json
+- 确保deploy/mpp_ive-md_svp/run.sh中的可执行文件为正确的可执行文件
+** 配置nfs
+在windows系统下使用hanewine
+- 将deploy文件夹，拷贝到D：/d/nfs_share下面
+** 批量拷贝文件
 #+begin_src bash
-  cp /home/liuyang/Documents/tmp/S81app /etc/init.d/ && rm -r /mnt/data/mpp_ive_md_svp-copy && cp -r /home/liuyang/Documents/haisi/mpp_ive_md_svp-copy /mnt/data/
+  cd ./deploy
+  python copyfile.py
 #+end_src
+** 说明
+- deploy/mpp_ive-md_svp/S81app修改开机自动运行
+- deploy/mpp_ive-md_svp/run.sh为开机自动运行脚本，可修改运行程序、及日志路径
 
-
-** 修改配置文件
-windows下修改危机：D：/nfs_share/deploy/mpp_ive-md_svp/data/configure_4k_nnn.json
-打开conda shell
-在D：/nfs_share/deploy/路径下运行：
-python 
-* description
-input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
-
-
-* usage
+* 在开发板上使用
  - step-1: start rtsp
   #+begin_src bash
     cd /home/liuyang/Documents/rtsp_server/
@@ -46,152 +47,3 @@ input: image -> ive.md, get moving regions -> svp-yolo, detection on regions
     python draw_rect_from_csv_data.py
   #+end_src
   
-* log
-#+begin_example
-/home/liuyang/Documents/haisi/mpp_ive-md_svp/out # ./md_yolo_merged_roi_async_vdec_vpss_nnn
-[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:06.616.818 [aicpusd_cust_so_manager.cpp:73][AicpuCustSoManagerInit][tid:2442] cust so dir name is /root/cust_aicpu_0_2442/.
-Usage: ./md_yolo_merged_roi_async_vdec_vpss_nnn <config_path>
-red frame number: 1
-red frame number: 2
-[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.959.348 [msprof_callback_impl.cpp:99] >>> (tid:2442) MsprofCtrlCallback called, type: 255
-[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.959.675 [prof_acl_mgr.cpp:1328] >>> (tid:2442) Init profiling for dynamic profiling
-[INFO]  nnn acl init success
-[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.972.999 [aicpusd_interface.cpp:113][AICPUPreOpenKernels][tid:2442] Preload so libaicpu_kernels.so success.
-[EVENT] CCECPU(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.975.915 [aicpusd_interface.cpp:113][AICPUPreOpenKernels][tid:2442] Preload so libcpu_kernels.so success.
-[EVENT] PROFILING(2442,md_yolo_merged_roi_async_vdec_vpss_nnn):1970-01-01-23:05:11.978.896 [msprof_callback_impl.cpp:120] >>> (tid:2442) MsprofSetDeviceCallback called, is open: 1
-[INFO]  nnn acl open device 0 success
-[INFO]  nnn create context success
-[INFO]  nnn create stream success
-[INFO]  get run mode success
-[INFO]  create model description success
-[INFO]  load model /home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/yolov8n_air-little-obj_32-roi_640x640_FP16.om success
-batch size: 1, height: 640, width: 640
-[INFO]  input index[0] info: bufferSize[614400]
-[INFO]  input dims:
-1, 640, 640, 3,
-
-[INFO]  create input buffer SUCCESS
-[INFO]  create model output success
-[INFO]  subscribe report success
-output_dir is: /mnt/disk/tmp/
-out num: 3
-out size of 0: 67200
-out size of 1: 16800
-out size of 2: 16800
-out dim:
-1, 4, 8400,
-out dim:
-1, 1, 8400,
-out dim:
-1, 1, 8400,
-Connection Failed.
-Received frame-1 with width: 1920
-set mb_decode_step_on
-red frame number: 3
-instance number: 0
-------------duration: 15, decode cost: 12, md cost: 0, merge cost: 0, syn cost: 0, async const: 0 milliseconds----------------
-Received frame-1 with width: 1920
-set mb_decode_step_on
-red frame number: 4
-instance number: 12
-callback from yolov8_new
---postprocess cost: 0ms, D2H cost: 0ms
-------------duration: 17, decode cost: 13, md cost: 0, merge cost: 1, syn cost: 1, async const: 0 milliseconds----------------
-Received frame-1 with width: 1920
-set mb_decode_step_on
-red frame number: 5
-instance number: 130
-callback from yolov8_new
---postprocess cost: 0ms, D2H cost: 0ms
-------------duration: 20, decode cost: 15, md cost: 1, merge cost: 2, syn cost: 0, async const: 0 milliseconds----------------
-Received frame-1 with width: 1920
-set mb_decode_step_on
-red frame number: 6
-instance number: 11
-callback from yolov8_new
---postprocess cost: 0ms, D2H cost: 0ms
-------------duration: 20, decode cost: 15, md cost: 1, merge cost: 1, syn cost: 2, async const: 0 milliseconds----------------
-Received frame-1 with width: 1920
-set mb_decode_step_on
-red frame number: 7
-instance number: 8
-callback from yolov8_new
---postprocess cost: 0ms, D2H cost: 0ms
-------------duration: 20, decode cost: 13, md cost: 1, merge cost: 1, syn cost: 4, async const: 0 milliseconds----------------
-
-#+end_example
-* old
-** method 1: md + svp_pingpong
-#+begin_src 
-  get one feature: 7
-------------duration: 32 milliseconds----------------
-instance number: 8
-input image: 91
-[INFO]  update ping input dataset success
-[INFO]  svp execute Ping starting
-[INFO]  svp execute Ping finished
-get one feature: 0
-input image: 92
-[INFO]  update pong input dataset success
-[INFO]  svp execute Pong starting
-input image: 93
-[INFO]  update ping input dataset success
-[INFO]  svp execute Pong finished
-[INFO]  svp execute Ping starting
-get one feature: 1
-input image: 94
-[INFO]  update pong input dataset success
-[INFO]  svp execute Ping finished
-get one feature: 2
-input image: 95
-[INFO]  update ping input dataset success
-[INFO]  svp execute Pong starting
-[INFO]  svp execute Pong finished
-get one feature: 3
-[INFO]  svp execute Ping starting
-input image: 96
-[INFO]  update pong input dataset success
-[INFO]  svp execute Ping finished
-get one feature: [INFO]  svp execute Pong starting
-4
-input image: 97
-[INFO]  update ping input dataset success
-[INFO]  svp execute Pong finished
-[INFO]  svp execute Ping starting
-input image: 98
-[INFO]  update pong input dataset success
-get one feature: 5
-[INFO]  svp execute Ping finished
-get one feature: 6
-[INFO]  svp execute Pong starting
-[INFO]  svp execute Pong finished
-get one feature: 7
-------------duration: 38 milliseconds----------------
-
-#+end_src
-
-
-** method 2: md + svp_yolov8(without pingpong)
-#+begin_src 
-  instance number: 0
-------------duration: 13 milliseconds----------------
-instance number: 9
-------------duration: 20 milliseconds----------------
-instance number: 45
-------------duration: 43 milliseconds----------------
-instance number: 7
-------------duration: 18 milliseconds----------------
-instance number: 8
-------------duration: 19 milliseconds----------------
-instance number: 6
-------------duration: 17 milliseconds----------------
-instance number: 7
-------------duration: 18 milliseconds----------------
-instance number: 8
-------------duration: 19 milliseconds----------------
-instance number: 8
-------------duration: 19 milliseconds----------------
-instance number: 13
-------------duration: 22 milliseconds----------------
-#+end_src
-

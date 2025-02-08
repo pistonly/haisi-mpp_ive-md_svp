@@ -1,0 +1,85 @@
+#! /bin/sh
+
+hostname localhost
+
+# Populate /dev/ based on /sys
+mdev -s
+
+## /mnt/recovery 
+mkdir -p /mnt/recovery
+mount -o ro,sync /dev/mmcblk0p4 /mnt/recovery -t ext4 2>/tmp/t
+#mount /dev/mmcblk0p4 /mnt/recovery -t ext4 2>/tmp/t
+cat /tmp/t
+result=$(grep "failed" /tmp/t)
+if (test -n "$result");then
+	echo "No YAFFS2 on mtdblock4, create it"
+	umount /mnt/recovery
+	echo y|mkfs.ext4 /dev/mmcblk0p4
+	mount /dev/mmcblk0p4 /mnt/recovery -t ext4
+fi
+rm /tmp/t
+
+mkdir -p /mnt/app
+#mount -o ro,sync /dev/mmcblk0p5 /mnt/app -t ext4 2>/tmp/t
+mount /dev/mmcblk0p5 /mnt/app -t ext4 2>/tmp/t
+cat /tmp/t
+result=$(grep "failed" /tmp/t)
+if (test -n "$result");then
+	echo "No YAFFS2 on mtdblock5, create it"
+	umount /mnt/app
+	echo y|mkfs.ext4 /dev/mmcblk0p5
+	mount /dev/mmcblk0p5 /mnt/app -t ext4
+fi
+rm /tmp/t
+
+mkdir -p /mnt/cfg
+mount /dev/mmcblk0p6 /mnt/cfg -t ext4 2>/tmp/t
+cat /tmp/t
+result=$(grep "failed" /tmp/t)
+if (test -n "$result");then
+	echo "No YAFFS2 on mtdblock6, create it"
+	umount /mnt/cfg
+	echo y|mkfs.ext4 /dev/mmcblk0p6
+	mount /dev/mmcblk0p6 /mnt/cfg -t ext4
+fi
+rm /tmp/t
+
+mkdir -p /mnt/data
+mount /dev/mmcblk0p7 /mnt/data -t ext4 2>/tmp/t
+cat /tmp/t
+result=$(grep "failed" /tmp/t)
+if (test -n "$result");then
+	echo "No YAFFS2 on mtdblock$MTDBLOCKNUM, create it"
+	umount /mnt/cfg
+	echo y|mkfs.ext4 /dev/mmcblk0p7
+	mount /dev/mmcblk0p7 /mnt/data -t ext4
+fi
+rm /tmp/t
+
+#burn_flag
+if [ -f "/mnt/burn_flag" ];then
+        rm /mnt/cfg/*
+        rm /mnt/burn_flag
+
+fi
+
+
+mkdir /mnt/nfs/ -p
+
+rm /var/*.log
+
+ifconfig eth0 down
+ifconfig eth0 hw ether A8:C3:15:01:22:10
+ifconfig eth0 192.168.0.200
+route add default gw 192.168.0.1
+ifconfig eth0 netmask 255.255.255.0
+ifconfig lo 127.0.0.1
+ifconfig eth0 up
+
+telnetd&
+
+# create code and log path
+
+# launch
+sh /mnt/app/loadsetting &
+sh /mnt/data/mpp_ive-md_svp/run.sh &
