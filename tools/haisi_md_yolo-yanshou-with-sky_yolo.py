@@ -338,13 +338,13 @@ if __name__ == "__main__":
     # video_path = "/home/liuyang/Documents/qiyuan_jiaojie/tools/202410191444_0.hevc"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/yolov8-air_little_obj_roi/yolov8n-32_yanshou_10-percent_2/weights/best.onnx"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/yolov8-air_little_obj_roi/yolov8n-32_/weights/best.onnx"
-    sky_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj/sky/weights/best.onnx"
+    sky_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs/runs_yolov8-air_little_obj/sky/weights/best.onnx"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj_roi/als-1214_sz-32_freeze-10_lr0-0005_2/weights/best.onnx"
     # onnx_model = "/home/liuyang/Documents/qiyuan_jiaojie/nnn_om_convert/models/yolov8n_air-little-obj_32-roi_yanshou-4video-10percent.onnx"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj_roi/als-1214_sz-32_lr0-0005_/weights/best.onnx"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj_roi/als-1214_sz-32_lr0-001_/weights/best.onnx"
     # onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj_roi/als-1214_sz-32_lr0-001-add_some_images_/weights/best.onnx"
-    onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs_yolov8-air_little_obj_roi/als-1216_sz-32_lr0-001-add_some_images_/weights/best.onnx"
+    onnx_model = "/home/liuyang/Documents/YOLO/yolov8_scripts/runs/runs_yolov8-air_little_obj_roi/als-1216_sz-32_lr0-001-add_some_images_/weights/best.onnx"
 
     # You can adjust patch_size as needed, for example patch_size=32, patch_size=16, etc.
     main(video_path, onnx_model, start_frame, sky_model=sky_model, patch_size=64)

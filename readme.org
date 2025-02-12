@@ -46,4 +46,3 @@
     # change result path to: /home/liuyang/Documents/tmp/tmp-1
     python draw_rect_from_csv_data.py
   #+end_src
-  
